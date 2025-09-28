@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Gestión de Usuarios - API Tienda Ropa</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; }
+        .container { max-width: 900px; margin: auto; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); }
+        h2 { border-bottom: 2px solid #4CAF50; padding-bottom: 10px; color: #333; }
+        input, select { padding: 10px; margin: 5px 0 15px 0; border: 1px solid #ccc; border-radius: 4px; width: calc(50% - 12px); box-sizing: border-box; }
+        button { background-color: #4CAF50; color: white; padding: 10px 15px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background-color: #45a049; }
+        #userTable { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        #userTable th, #userTable td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        #userTable th { background-color: #f2f2f2; }
+        .error { color: red; font-weight: bold; }
+        .success { color: green; font-weight: bold; }
+        button.delete-btn { background-color: #f44336; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2 id="welcomeMessage">Panel de Administración</h2>
+    <p><button onclick="logout()">Cerrar Sesión</button></p>
+    <div id="statusMessage"></div>
+
+    <hr>
+    <h3>1. Registrar Nuevo Usuario</h3>
+    <form id="registerForm" autocomplete="off">
+        <input type="email" placeholder="Email" id="regEmail" required autocomplete="off">
+        <input type="password" placeholder="Contraseña" id="regPassword" required autocomplete="new-password">
+        <select id="regRole" required>
+            <option value="ROLE_USER" selected>Usuario</option>
+            <option value="ROLE_ADMIN">Administrador</option>
+        </select>
+        <button type="submit">Registrar Usuario</button>
+    </form>
+    <p id="registerMessage"></p>
+    <hr>
+
+    <h3>2. Usuarios Registrados</h3>
+    <button onclick="fetchUsers()">Recargar Lista</button>
+    <p id="listMessage"></p>
+    <table id="userTable">
+        <thead>
+        <tr><th>ID</th><th>Email</th><th>Nombre</th><th>Rol</th><th>Acción</th></tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+</div>
+
+<script>
+    const API_URL = 'http://localhost:8080/api';
+    const token = localStorage.getItem('jwtToken');
+    const role = localStorage.getItem('userRole');
+
+    // Cerrar sesión
+    function logout() {
+        localStorage.clear();
+        window.location.href = 'login.html';
+    }
+
+    // Verificar rol al cargar
+    if (!token || role !== 'ROLE_ADMIN') {
+        alert('Acceso no autorizado. Debe iniciar sesión como administrador.');
+        logout();
+    } else {
+        document.getElementById('welcomeMessage').textContent = `Bienvenido, Administrador (${role}).`;
+    }
+
+    // Registrar usuario
+    document.getElementById('registerForm').addEventListener('submit', function(event) {
+        event.preventDefault();
+        const regMessage = document.getElementById('registerMessage');
+        regMessage.className = '';
+        regMessage.textContent = 'Registrando...';
+
+        const data = {
+            email: document.getElementById('regEmail').value,
+            password: document.getElementById('regPassword').value,
+            rol: document.getElementById('regRole').value
+        };
+
+        fetch(`${API_URL}/auth/register`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
+        })
+        .then(async response => {
+            const responseText = await response.text();
+            if (response.ok) {
+                regMessage.textContent = 'Usuario registrado exitosamente!';
+                regMessage.classList.add('success');
+                fetchUsers();
+            } else {
+                regMessage.textContent = `Fallo en el registro: ${responseText || response.statusText}`;
+                regMessage.classList.add('error');
+            }
+        })
+        .catch(error => {
+            regMessage.textContent = `Error de conexión: ${error.message}`;
+            regMessage.classList.add('error');
+        });
+    });
+
+    // Listar usuarios
+    function fetchUsers() {
+        const listMessage = document.getElementById('listMessage');
+        listMessage.className = '';
+        listMessage.textContent = 'Cargando usuarios...';
+
+        fetch(`${API_URL}/users`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(response => {
+            if (response.ok) return response.json();
+            else throw new Error('No se pudo cargar la lista de usuarios');
+        })
+        .then(users => {
+            listMessage.textContent = 'Usuarios cargados correctamente.';
+            listMessage.classList.add('success');
+
+            const tbody = document.querySelector('#userTable tbody');
+            tbody.innerHTML = '';
+            users.forEach(user => {
+                const row = tbody.insertRow();
+                row.insertCell().textContent = user.id;
+                row.insertCell().textContent = user.email;
+                row.insertCell().textContent = user.nombre || 'N/A';
+                row.insertCell().textContent = user.rol ? user.rol.nombre : 'N/A';
+
+                const actionCell = row.insertCell();
+                if (user.rol && user.rol.nombre !== 'ROLE_ADMIN' && user.email !== 'admin@tienda.com') {
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.textContent = 'Eliminar';
+                    deleteBtn.classList.add('delete-btn');
+                    deleteBtn.onclick = () => deleteUser(user.id);
+                    actionCell.appendChild(deleteBtn);
+                } else {
+                    actionCell.textContent = 'Principal/Admin';
+                }
+            });
+        })
+        .catch(error => {
+            listMessage.textContent = `Error al cargar usuarios: ${error.message}`;
+            listMessage.classList.add('error');
+        });
+    }
+
+    // Eliminar usuario
+    function deleteUser(userId) {
+        if (!confirm('¿Estás seguro de que quieres eliminar a este usuario?')) return;
+
+        fetch(`${API_URL}/users/${userId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(response => {
+            if (response.ok) {
+                fetchUsers();
+            } else {
+                alert(`No se pudo eliminar el usuario (Código: ${response.status})`);
+            }
+        })
+        .catch(error => console.error('Error al eliminar:', error));
+    }
+
+    // Cargar lista al inicio
+    document.addEventListener('DOMContentLoaded', fetchUsers);
+</script>
+</body>
+</html>

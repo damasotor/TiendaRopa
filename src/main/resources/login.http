@@ -1,0 +1,16 @@
+### Solicitud de Login (POST)
+# @host = http://localhost:8080
+# @loginUrl = {{host}}/api/auth/login
+
+# --- 1. LOGIN ---
+POST {{loginUrl}}
+Content-Type: application/json
+
+{
+  "email": "test@admin.com",
+  "password": "password"
+}
+
+### Si el login es exitoso, usarías el token en peticiones futuras:
+# GET {{host}}/api/productos
+# Authorization:
