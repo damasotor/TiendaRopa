@@ -3,8 +3,6 @@ package com.ropa.tienda.model;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import java.util.List;
-
 @Document(collection = "productos")
 public class Producto {
 
@@ -12,11 +10,14 @@ public class Producto {
     private String id; // ID único generado por MongoDB
 
     private String nombre;
+    private float precio;
+    private String categoria;
     private String marca;
     private String descripcion;
-
-    // Precio de venta
-    private double precio;
+    //private Object atributos;
+    private String[] imagenes;
+    private String[] inventario;
+    private int stock;
 
     // Stock general (puede ser la suma de las variantes)
     private int stockTotal;
@@ -65,7 +66,7 @@ public class Producto {
         return precio;
     }
 
-    public void setPrecio(double precio) {
+    public void setPrecio(float precio) {
         this.precio = precio;
     }
 
