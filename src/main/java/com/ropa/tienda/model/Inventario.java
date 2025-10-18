@@ -1,13 +1,14 @@
+package com.ropa.tienda.model;
 import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import javax.validation.constraints.Min;
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotNull;
-import javax.validation.constraints.Pattern;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,7 +18,7 @@ import java.util.Map;
 @CompoundIndexes({
         @CompoundIndex(name = "idx_inventario_sucursal_stock", def = "{'inventario.sucursal_id': 1, 'inventario.stock': 1}")
 })
-public class Articulo {
+class Articulo {
 
     @Id
     private ObjectId id;
