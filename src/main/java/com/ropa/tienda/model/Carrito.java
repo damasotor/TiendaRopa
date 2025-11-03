@@ -48,6 +48,9 @@ public class Carrito {
         @Min(value = 1, message = "La cantidad debe ser al menos 1")
         private Integer cantidad;
 
+        // Campo opcional para recordar de qué sucursal se seleccionó el producto
+        private String sucursalId;
+
         @NotNull(message = "El precio unitario es obligatorio")
         @Min(value = 0, message = "El precio unitario debe ser no negativo")
         private Double precioUnitario;
@@ -64,6 +67,14 @@ public class Carrito {
             this.cantidad = cantidad;
             this.precioUnitario = precioUnitario;
             this.subtotal = subtotal;
+        }
+
+        public ItemCarrito(String articuloId, Integer cantidad, Double precioUnitario, Double subtotal, String sucursalId) {
+            this.articuloId = articuloId;
+            this.cantidad = cantidad;
+            this.precioUnitario = precioUnitario;
+            this.subtotal = subtotal;
+            this.sucursalId = sucursalId;
         }
 
         // Getters y Setters
@@ -97,6 +108,14 @@ public class Carrito {
 
         public void setSubtotal(Double subtotal) {
             this.subtotal = subtotal;
+        }
+
+        public String getSucursalId() {
+            return sucursalId;
+        }
+
+        public void setSucursalId(String sucursalId) {
+            this.sucursalId = sucursalId;
         }
     }
 

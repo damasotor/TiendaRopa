@@ -15,7 +15,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 // DTOs para las peticiones
-record AgregarItemRequest(String articuloId, Integer cantidad) {}
+record AgregarItemRequest(String articuloId, Integer cantidad, String sucursalId) {}
 record EliminarItemRequest(String articuloId) {}
 
 @RestController
@@ -146,10 +146,12 @@ public class CarritoController {
                     request.articuloId(), // Usar el ID como string directamente
                     request.cantidad(),
                     producto.get().getPrecio(),
-                    request.cantidad() * producto.get().getPrecio()
+                    request.cantidad() * producto.get().getPrecio(),
+                    request.sucursalId() // Incluir sucursal seleccionada
                 );
                 carrito.getItems().add(nuevoItem);
-                System.out.println("Nuevo item agregado con ID: " + request.articuloId());
+                System.out.println("Nuevo item agregado con ID: " + request.articuloId() + 
+                                 " para sucursal: " + request.sucursalId());
             }
 
             // Actualizar total del carrito

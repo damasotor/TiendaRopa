@@ -27,6 +27,7 @@
     <hr>
     <h3>1. Registrar Nuevo Usuario</h3>
     <form id="registerForm" autocomplete="off">
+        <input type="text" placeholder="Nombre" id="regNombre" required autocomplete="off">
         <input type="email" placeholder="Email" id="regEmail" required autocomplete="off">
         <input type="password" placeholder="Contraseña" id="regPassword" required autocomplete="new-password">
         <select id="regRole" required>
@@ -77,6 +78,7 @@
         regMessage.textContent = 'Registrando...';
 
         const data = {
+            nombre: document.getElementById('regNombre').value,
             email: document.getElementById('regEmail').value,
             password: document.getElementById('regPassword').value,
             rol: document.getElementById('regRole').value

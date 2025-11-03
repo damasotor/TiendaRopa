@@ -4,6 +4,9 @@ import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -13,6 +16,8 @@ import java.time.LocalDateTime;
 public class Sucursal {
 
     @Id
+    @JsonSerialize(using = ToStringSerializer.class)
+    @JsonProperty("id")
     private ObjectId id;
 
     @NotBlank(message = "El nombre no puede estar vacío")
@@ -44,6 +49,10 @@ public class Sucursal {
     // Getters y Setters
     public ObjectId getId() {
         return id;
+    }
+    
+    public String getIdAsString() {
+        return id != null ? id.toString() : null;
     }
 
     public void setId(ObjectId id) {

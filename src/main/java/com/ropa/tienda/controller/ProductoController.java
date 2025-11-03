@@ -2,6 +2,7 @@ package com.ropa.tienda.controller;
 
 import com.ropa.tienda.model.Producto;
 import com.ropa.tienda.repository.ProductoRepository;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
@@ -14,6 +15,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -87,16 +89,43 @@ public class ProductoController {
                 }
             }
 
-            // Filtrar por sucursal (campo simple)
+            // Filtrar por sucursal usando la estructura de inventario
             if (filtros.sucursales() != null && !filtros.sucursales().isEmpty()) {
                 System.out.println("Aplicando filtro por sucursales: " + filtros.sucursales());
-                criteria.and("sucursal").in(filtros.sucursales());
+                System.out.println("Tipo de sucursales: " + filtros.sucursales().getClass());
+                
+                // Crear lista que incluya tanto String IDs como ObjectIds para compatibilidad
+                List<Object> sucursalIds = new ArrayList<>();
+                for (String sucursal : filtros.sucursales()) {
+                    try {
+                        // Agregar como String (para compatibilidad con inventario que tiene string IDs)
+                        sucursalIds.add(sucursal);
+                        
+                        // También agregar como ObjectId (para compatibilidad con estructura nueva)
+                        ObjectId objectId = new ObjectId(sucursal);
+                        sucursalIds.add(objectId);
+                        
+                        System.out.println("  - Sucursal ID agregado como String: '" + sucursal + "'");
+                        System.out.println("  - Sucursal ID agregado como ObjectId: " + objectId);
+                    } catch (IllegalArgumentException e) {
+                        System.err.println("ID de sucursal inválido: " + sucursal);
+                        // Solo agregar como string si no es un ObjectId válido
+                        sucursalIds.add(sucursal);
+                    }
+                }
+                
+                if (!sucursalIds.isEmpty()) {
+                    // Filtrar productos que tengan inventario en alguna de las sucursales especificadas
+                    criteria.and("inventario.sucursal_id").in(sucursalIds);
+                    System.out.println("Criterio de sucursal aplicado: inventario.sucursal_id in " + sucursalIds);
+                }
             }
 
-            // Filtrar por stock mínimo (campo simple)
+            // Filtrar por stock mínimo usando la estructura de inventario
             if (filtros.stockMinimo() != null) {
                 System.out.println("Aplicando filtro por stock mínimo: " + filtros.stockMinimo());
-                criteria.and("stock").gte(filtros.stockMinimo());
+                // Filtrar productos que tengan al menos el stock mínimo en alguna sucursal
+                criteria.and("inventario.stock").gte(filtros.stockMinimo());
             }
 
             // Crear operaciones de aggregation
@@ -106,11 +135,15 @@ public class ProductoController {
             Aggregation aggregation = Aggregation.newAggregation(matchOperation);
 
             System.out.println("Ejecutando aggregation en colección 'productos'");
+            System.out.println("Criterios finales: " + criteria.getCriteriaObject());
             AggregationResults<Producto> results = mongoTemplate.aggregate(
                 aggregation, "productos", Producto.class);
 
             List<Producto> productos = results.getMappedResults();
             System.out.println("Productos encontrados: " + productos.size());
+            if (!productos.isEmpty()) {
+                System.out.println("Primer producto encontrado: " + productos.get(0).getNombre());
+            }
 
             return ResponseEntity.ok(productos);
 

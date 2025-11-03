@@ -39,6 +39,10 @@ public class Usuario {
     @NotBlank(message = "El nombre no puede estar vacío")
     private String nombre;
 
+    private java.time.LocalDate fechaNacimiento;
+    private boolean activo = true;
+    private LocalDateTime fechaRegistro;
+
     // @Valid aplica la validación al contenido de la lista (clase Direccion)
     @Valid
     private List<Direccion> direcciones = new ArrayList<>();
@@ -101,6 +105,15 @@ public class Usuario {
 
     public String getNombre() { return nombre; }
     public void setNombre(String nombre) { this.nombre = nombre; }
+
+    public java.time.LocalDate getFechaNacimiento() { return fechaNacimiento; }
+    public void setFechaNacimiento(java.time.LocalDate fechaNacimiento) { this.fechaNacimiento = fechaNacimiento; }
+
+    public boolean isActivo() { return activo; }
+    public void setActivo(boolean activo) { this.activo = activo; }
+
+    public LocalDateTime getFechaRegistro() { return fechaRegistro; }
+    public void setFechaRegistro(LocalDateTime fechaRegistro) { this.fechaRegistro = fechaRegistro; }
 
     public List<Direccion> getDirecciones() { return direcciones; }
     public void setDirecciones(List<Direccion> direcciones) { this.direcciones = direcciones; }

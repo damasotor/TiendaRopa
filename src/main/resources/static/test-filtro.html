@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Filtro Sucursal</title>
+</head>
+<body>
+    <h1>Test Filtro por Sucursal</h1>
+    
+    <button onclick="testFiltroSucursal()">Probar Filtro Centro</button>
+    <button onclick="testFiltroSucursal2()">Probar Filtro Punta Carretas</button>
+    
+    <div id="resultado"></div>
+    
+    <script>
+        async function testFiltroSucursal() {
+            console.log('=== TESTING FILTRO SUCURSAL CENTRO ===');
+            
+            const payload = {
+                "sucursales": ["6908e8a0b482ce1ec23cdb83"],
+                "stockMinimo": 1
+            };
+            
+            console.log('Payload:', JSON.stringify(payload, null, 2));
+            
+            try {
+                const response = await fetch('/api/productos/filtrar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                console.log('Response status:', response.status);
+                
+                if (response.ok) {
+                    const productos = await response.json();
+                    console.log('Productos recibidos:', productos.length);
+                    document.getElementById('resultado').innerHTML = 
+                        `<h2>Resultados Centro</h2><p>Productos encontrados: ${productos.length}</p>
+                         <pre>${JSON.stringify(productos.slice(0, 2), null, 2)}</pre>`;
+                } else {
+                    const error = await response.text();
+                    console.error('Error:', error);
+                    document.getElementById('resultado').innerHTML = `<h2>Error</h2><p>${error}</p>`;
+                }
+            } catch (error) {
+                console.error('Fetch error:', error);
+                document.getElementById('resultado').innerHTML = `<h2>Fetch Error</h2><p>${error}</p>`;
+            }
+        }
+        
+        async function testFiltroSucursal2() {
+            console.log('=== TESTING FILTRO SUCURSAL PUNTA CARRETAS ===');
+            
+            const payload = {
+                "sucursales": ["6908e8a0b482ce1ec23cdb84"],
+                "stockMinimo": 1
+            };
+            
+            console.log('Payload:', JSON.stringify(payload, null, 2));
+            
+            try {
+                const response = await fetch('/api/productos/filtrar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                console.log('Response status:', response.status);
+                
+                if (response.ok) {
+                    const productos = await response.json();
+                    console.log('Productos recibidos:', productos.length);
+                    document.getElementById('resultado').innerHTML = 
+                        `<h2>Resultados Punta Carretas</h2><p>Productos encontrados: ${productos.length}</p>
+                         <pre>${JSON.stringify(productos.slice(0, 2), null, 2)}</pre>`;
+                } else {
+                    const error = await response.text();
+                    console.error('Error:', error);
+                    document.getElementById('resultado').innerHTML = `<h2>Error</h2><p>${error}</p>`;
+                }
+            } catch (error) {
+                console.error('Fetch error:', error);
+                document.getElementById('resultado').innerHTML = `<h2>Fetch Error</h2><p>${error}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -2,9 +2,11 @@ package com.ropa.tienda.controller;
 
 import com.ropa.tienda.model.Carrito;
 import com.ropa.tienda.model.Orden;
+import com.ropa.tienda.model.Producto;
 import com.ropa.tienda.model.Usuario;
 import com.ropa.tienda.repository.CarritoRepository;
 import com.ropa.tienda.repository.OrdenRepository;
+import com.ropa.tienda.repository.ProductoRepository;
 import com.ropa.tienda.repository.UserRepository;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +37,9 @@ public class OrdenController {
 
     @Autowired
     private CarritoRepository carritoRepository;
+
+    @Autowired
+    private ProductoRepository productoRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -113,16 +118,110 @@ public class OrdenController {
                 nuevaOrden.setDireccionEnvio(request.direccionEnvio());
             }
 
-            // Convertir items del carrito a items de orden
+            // Convertir items del carrito a items de orden (incluyendo sucursalId específico)
             List<Orden.ItemOrden> itemsOrden = carrito.getItems().stream()
                 .map(itemCarrito -> new Orden.ItemOrden(
                     itemCarrito.getArticuloId(),
                     itemCarrito.getCantidad(),
+                    itemCarrito.getSucursalId(), // Usar la sucursal específica del item
                     itemCarrito.getPrecioUnitario(),
                     itemCarrito.getSubtotal()
                 )).toList();
 
             nuevaOrden.setItems(itemsOrden);
+
+            // *** NUEVA FUNCIONALIDAD: Reducir stock de productos ***
+            System.out.println("Actualizando stock de productos...");
+            boolean stockSuficiente = true;
+            StringBuilder errorMessage = new StringBuilder();
+
+            // Verificar que hay stock suficiente para todos los productos
+            for (Orden.ItemOrden item : itemsOrden) {
+                Optional<Producto> productoOpt = productoRepository.findById(item.getArticuloId());
+                if (productoOpt.isPresent()) {
+                    Producto producto = productoOpt.get();
+                    int stockDisponible = producto.getStockTotal(); // Usar stock total del inventario
+                    if (stockDisponible < item.getCantidad()) {
+                        stockSuficiente = false;
+                        errorMessage.append("Stock insuficiente para ").append(producto.getNombre())
+                                  .append(". Disponible: ").append(stockDisponible)
+                                  .append(", solicitado: ").append(item.getCantidad()).append(". ");
+                    }
+                } else {
+                    stockSuficiente = false;
+                    errorMessage.append("Producto no encontrado: ").append(item.getArticuloId()).append(". ");
+                }
+            }
+
+            if (!stockSuficiente) {
+                System.out.println("Error de stock: " + errorMessage.toString());
+                return ResponseEntity.badRequest().body(errorMessage.toString());
+            }
+
+            // Si hay stock suficiente, proceder a reducirlo
+            for (Orden.ItemOrden item : itemsOrden) {
+                Optional<Producto> productoOpt = productoRepository.findById(item.getArticuloId());
+                if (productoOpt.isPresent()) {
+                    Producto producto = productoOpt.get();
+                    producto.setActualizadoEn(LocalDateTime.now());
+                    
+                    // Actualizar el inventario por sucursal específica del item
+                    if (producto.getInventario() != null && !producto.getInventario().isEmpty()) {
+                        int cantidadRestante = item.getCantidad();
+                        boolean stockReducido = false;
+                        
+                        // Usar la sucursal específica de cada item
+                        String sucursalItemId = item.getSucursalId();
+                        if (sucursalItemId != null && !sucursalItemId.isEmpty()) {
+                            System.out.println("Reduciendo stock de sucursal específica del item: " + sucursalItemId);
+                            
+                            for (Producto.Inventario inv : producto.getInventario()) {
+                                // Verificar si esta es la sucursal del item específico
+                                if (sucursalItemId.equals(inv.getSucursalId().toString())) {
+                                    int stockDisponible = inv.getStock();
+                                    if (stockDisponible >= cantidadRestante) {
+                                        inv.setStock(stockDisponible - cantidadRestante);
+                                        System.out.println("Reducido stock en sucursal " + inv.getSucursalId() + 
+                                                         " para producto " + producto.getNombre() + 
+                                                         ": " + stockDisponible + " -> " + inv.getStock());
+                                        stockReducido = true;
+                                        cantidadRestante = 0; // Marcamos que ya se redujo toda la cantidad
+                                    } else {
+                                        System.out.println("Stock insuficiente en sucursal del item: " + inv.getSucursalId());
+                                    }
+                                    break;
+                                }
+                            }
+                        } 
+                        
+                        // Si no se pudo reducir del item específico o no tiene sucursal, usar cualquier disponible
+                        if (!stockReducido) {
+                            System.out.println("Fallback: reduciendo del primer stock disponible");
+                            
+                            for (Producto.Inventario inv : producto.getInventario()) {
+                                if (cantidadRestante <= 0) break;
+                                
+                                int stockDisponible = inv.getStock();
+                                if (stockDisponible > 0) {
+                                    int cantidadAReducir = Math.min(stockDisponible, cantidadRestante);
+                                    inv.setStock(stockDisponible - cantidadAReducir);
+                                    cantidadRestante -= cantidadAReducir;
+                                    System.out.println("Reducido stock en sucursal " + inv.getSucursalId() + 
+                                                     ": " + stockDisponible + " -> " + inv.getStock());
+                                }
+                            }
+                        }
+                        
+                        if (cantidadRestante > 0) {
+                            System.out.println("Advertencia: No se pudo reducir toda la cantidad solicitada");
+                        }
+                    }
+                    
+                    productoRepository.save(producto);
+                    System.out.println("Stock actualizado para " + producto.getNombre() + 
+                                     ". Stock total: " + producto.getStockTotal());
+                }
+            }
 
             // Guardar orden
             System.out.println("Guardando orden...");

@@ -76,6 +76,9 @@ public class Orden {
         @Min(value = 1, message = "La cantidad debe ser al menos 1")
         private Integer cantidad;
 
+        // Campo para recordar de qué sucursal se compró cada producto
+        private String sucursalId;
+
         @NotNull(message = "El precio unitario es obligatorio")
         @Min(value = 0, message = "El precio unitario debe ser no negativo")
         private Double precioUnitario;
@@ -90,6 +93,14 @@ public class Orden {
         public ItemOrden(String articuloId, Integer cantidad, Double precioUnitario, Double subtotal) {
             this.articuloId = articuloId;
             this.cantidad = cantidad;
+            this.precioUnitario = precioUnitario;
+            this.subtotal = subtotal;
+        }
+
+        public ItemOrden(String articuloId, Integer cantidad, String sucursalId, Double precioUnitario, Double subtotal) {
+            this.articuloId = articuloId;
+            this.cantidad = cantidad;
+            this.sucursalId = sucursalId;
             this.precioUnitario = precioUnitario;
             this.subtotal = subtotal;
         }
@@ -125,6 +136,14 @@ public class Orden {
 
         public void setSubtotal(Double subtotal) {
             this.subtotal = subtotal;
+        }
+
+        public String getSucursalId() {
+            return sucursalId;
+        }
+
+        public void setSucursalId(String sucursalId) {
+            this.sucursalId = sucursalId;
         }
     }
 

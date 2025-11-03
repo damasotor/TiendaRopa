@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Filtros</title>
+    <script>
+        async function debugFiltros() {
+            console.log('=== DEBUGGING FILTROS ===');
+            
+            // 1. Probar endpoint de sucursales
+            try {
+                const sucursalesResponse = await fetch('/api/sucursales');
+                const sucursales = await sucursalesResponse.json();
+                console.log('1. Sucursales recibidas:', sucursales);
+                
+                // 2. Probar filtro con primera sucursal
+                const firstSucursal = sucursales[0];
+                const sucursalId = firstSucursal.id || firstSucursal._id;
+                console.log('2. ID de primera sucursal:', sucursalId);
+                
+                const filtro = {
+                    sucursales: [sucursalId],
+                    stockMinimo: 1
+                };
+                
+                console.log('3. Filtro que se enviará:', JSON.stringify(filtro, null, 2));
+                
+                const filtroResponse = await fetch('/api/productos/filtrar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(filtro)
+                });
+                
+                const productos = await filtroResponse.json();
+                console.log('4. Productos recibidos:', productos.length);
+                
+                // Mostrar resultados en pantalla
+                document.getElementById('resultados').innerHTML = `
+                    <h3>Resultados del Debug:</h3>
+                    <p><strong>Sucursales disponibles:</strong> ${sucursales.length}</p>
+                    <p><strong>ID de primera sucursal:</strong> ${sucursalId}</p>
+                    <p><strong>Productos encontrados:</strong> ${productos.length}</p>
+                    <pre>${JSON.stringify(filtro, null, 2)}</pre>
+                `;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('resultados').innerHTML = `<p>Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>Debug de Filtros por Sucursal</h1>
+    <button onclick="debugFiltros()">Ejecutar Debug</button>
+    <div id="resultados"></div>
+</body>
+</html>

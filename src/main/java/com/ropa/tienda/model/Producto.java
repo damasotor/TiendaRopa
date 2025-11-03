@@ -220,6 +220,21 @@ public class Producto {
     public void agregarInventario(Inventario inventario) {
         this.inventario.add(inventario);
     }
+    
+    // Método para calcular el stock total desde el inventario
+    public int getStockTotal() {
+        return inventario != null ? 
+            inventario.stream().mapToInt(Inventario::getStock).sum() : 0;
+    }
+    
+    // Método para obtener stock de una sucursal específica
+    public int getStockEnSucursal(String sucursalId) {
+        if (inventario == null || sucursalId == null) return 0;
+        return inventario.stream()
+            .filter(inv -> sucursalId.equals(inv.getSucursalId()))
+            .mapToInt(Inventario::getStock)
+            .sum();
+    }
 
     // Método para agregar una imagen
     public void agregarImagen(String imagenUrl) {

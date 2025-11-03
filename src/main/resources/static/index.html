@@ -195,10 +195,14 @@
                 <label class="block text-sm font-medium text-gray-700 mb-2">Categoría</label>
                 <select id="categoriaFiltro" class="w-full border border-gray-300 rounded-lg px-3 py-2">
                     <option value="">Todas las categorías</option>
-                    <option value="camisas">Camisas</option>
-                    <option value="pantalones">Pantalones</option>
-                    <option value="zapatos">Zapatos</option>
-                    <option value="accesorios">Accesorios</option>
+                    <option value="Accesorios">Accesorios</option>
+                    <option value="Camisas">Camisas</option>
+                    <option value="Chaquetas">Chaquetas</option>
+                    <option value="Faldas">Faldas</option>
+                    <option value="Pantalones">Pantalones</option>
+                    <option value="Shorts">Shorts</option>
+                    <option value="Vestidos">Vestidos</option>
+                    <option value="Zapatos">Zapatos</option>
                 </select>
             </div>
 
@@ -207,15 +211,16 @@
                 <label class="block text-sm font-medium text-gray-700 mb-2">Color</label>
                 <select id="colorFiltro" class="w-full border border-gray-300 rounded-lg px-3 py-2">
                     <option value="">Todos los colores</option>
-                    <option value="azul">Azul</option>
-                    <option value="rojo">Rojo</option>
-                    <option value="verde">Verde</option>
-                    <option value="blanco">Blanco</option>
-                    <option value="negro">Negro</option>
-                    <option value="gris">Gris</option>
-                    <option value="marrón">Marrón</option>
-                    <option value="amarillo">Amarillo</option>
-                    <option value="beige">Beige</option>
+                    <option value="Amarillo">Amarillo</option>
+                    <option value="Azul">Azul</option>
+                    <option value="Blanco">Blanco</option>
+                    <option value="Gris">Gris</option>
+                    <option value="Marrón">Marrón</option>
+                    <option value="Negro">Negro</option>
+                    <option value="Rojo">Rojo</option>
+                    <option value="Rosa">Rosa</option>
+                    <option value="Verde">Verde</option>
+                    <option value="Violeta">Violeta</option>
                 </select>
             </div>
 
@@ -294,6 +299,16 @@
             </div>
             
             <div class="mt-6 pt-4 border-t">
+                <!-- Información de entrega simplificada -->
+                <div class="mb-4">
+                    <div class="flex items-center text-sm text-gray-600 mb-2">
+                        <span class="font-medium">Método de entrega:</span>
+                        <span class="ml-2">Envío a domicilio</span>
+                    </div>
+                    <!-- Campo oculto para mantener compatibilidad -->
+                    <input type="radio" name="tipoEntrega" value="envio" checked class="hidden">
+                </div>
+                
                 <div class="flex justify-between items-center mb-4">
                     <span class="text-lg font-semibold">Total:</span>
                     <span id="carritoTotal" class="text-lg font-bold text-blue-600">$0</span>
@@ -345,6 +360,7 @@
     let carrito = { items: [], total: 0 };
     let productos = [];
     let sucursales = [];
+    let sucursalFiltradaActual = null; // Nueva variable para recordar la sucursal filtrada
 
     console.log('Visitante ID inicializado:', visitanteId);
 
@@ -372,18 +388,44 @@
     // Cargar sucursales
     async function cargarSucursales() {
         try {
-            // Usar nombres de sucursales fijos basados en nuestros datos de prueba
-            const sucursalesDisponibles = ['Centro', 'Punta Carretas', 'Maldonado'];
-            const select = document.getElementById('sucursalFiltro');
-            
-            sucursalesDisponibles.forEach(nombreSucursal => {
-                const option = document.createElement('option');
-                option.value = nombreSucursal;
-                option.textContent = nombreSucursal;
-                select.appendChild(option);
-            });
-            
-            console.log('Sucursales cargadas:', sucursalesDisponibles);
+            // Cargar sucursales desde la API
+            const response = await fetch(`${API_URL}/sucursales`);
+            if (response.ok) {
+                const sucursalesData = await response.json();
+                const select = document.getElementById('sucursalFiltro');
+                
+                sucursalesData.forEach(sucursal => {
+                    const option = document.createElement('option');
+                    // Intentar múltiples formas de obtener el ID
+                    const sucursalId = sucursal.id || sucursal._id || sucursal.idAsString;
+                    option.value = sucursalId;
+                    option.textContent = sucursal.nombre;
+                    select.appendChild(option);
+                    console.log(`Sucursal cargada: ${sucursal.nombre} -> ID: ${sucursalId}`);
+                });
+                
+                console.log('Sucursales cargadas:', sucursalesData);
+                sucursales = sucursalesData; // Guardar para uso posterior
+            } else {
+                console.error('Error cargando sucursales desde API, usando datos fijos');
+                // Fallback con datos fijos (IDs como strings que coinciden con la BD)
+                const sucursalesDisponibles = [
+                    {id: '6908e8a0b482ce1ec23cdb83', nombre: 'Centro'},
+                    {id: '6908e8a0b482ce1ec23cdb84', nombre: 'Punta Carretas'},
+                    {id: '6908e8a0b482ce1ec23cdb85', nombre: 'Maldonado'}
+                ];
+                const select = document.getElementById('sucursalFiltro');
+                
+                sucursalesDisponibles.forEach(sucursal => {
+                    const option = document.createElement('option');
+                    option.value = sucursal.id;
+                    option.textContent = sucursal.nombre;
+                    select.appendChild(option);
+                    console.log(`Sucursal fallback cargada: ${sucursal.nombre} -> ID: ${sucursal.id}`);
+                });
+                
+                sucursales = sucursalesDisponibles;
+            }
         } catch (error) {
             console.error('Error cargando sucursales:', error);
         }
@@ -467,7 +509,15 @@
         if (categoria) filtros.categoria = categoria;
         if (color) filtros.atributos.color = color;
         if (precioMax) filtros.precioMax = parseFloat(precioMax);
-        if (sucursal && sucursal !== 'all') filtros.sucursales = [sucursal];
+        if (sucursal && sucursal !== '') {
+            filtros.sucursales = [sucursal];
+            sucursalFiltradaActual = sucursal; // Recordar la sucursal filtrada
+            console.log('🔍 FILTRO POR SUCURSAL APLICADO:', sucursal);
+            console.log('💾 SUCURSAL RECORDADA PARA COMPRAS:', sucursalFiltradaActual);
+        } else {
+            sucursalFiltradaActual = null; // Limpiar sucursal recordada si no hay filtro
+            console.log('🧹 SUCURSAL RECORDADA LIMPIADA');
+        }
 
         console.log('Objeto filtros:', JSON.stringify(filtros, null, 2));
 
@@ -487,7 +537,15 @@
 
             if (response.ok) {
                 const productosFiltrados = await response.json();
-                console.log('Productos filtrados recibidos:', productosFiltrados.length, 'productos');
+                console.log('✅ Productos filtrados recibidos:', productosFiltrados.length, 'productos');
+                
+                if (filtros.sucursales.length > 0) {
+                    console.log('🏢 Filtro por sucursal activo, productos encontrados:', productosFiltrados.length);
+                    if (productosFiltrados.length === 0) {
+                        console.warn('⚠️ NO SE ENCONTRARON PRODUCTOS para sucursal:', filtros.sucursales[0]);
+                    }
+                }
+                
                 mostrarProductosEnGrid(productosFiltrados);
                 
                 // Actualizar contador de resultados
@@ -512,6 +570,8 @@
         document.getElementById('colorFiltro').value = '';
         document.getElementById('precioMax').value = '';
         document.getElementById('sucursalFiltro').value = '';
+        sucursalFiltradaActual = null; // Limpiar sucursal recordada
+        console.log('🧹 FILTROS Y SUCURSAL RECORDADA LIMPIADOS');
         mostrarProductosEnGrid(productos);
     }
 
@@ -544,7 +604,8 @@
                 headers: headers,
                 body: JSON.stringify({
                     articuloId: productoId,
-                    cantidad: cantidad
+                    cantidad: cantidad,
+                    sucursalId: sucursalFiltradaActual // Incluir la sucursal actual filtrada
                 })
             });
 
@@ -897,11 +958,23 @@
                 return;
             }
 
+            // Determinar sucursal para la compra
+            let sucursalId = null;
+            
+            // Verificar si hay una sucursal filtrada para usar automáticamente
+            if (sucursalFiltradaActual) {
+                sucursalId = sucursalFiltradaActual;
+                console.log('🎯 USANDO SUCURSAL FILTRADA AUTOMÁTICAMENTE:', sucursalId);
+                console.log('💡 Esto reducirá el stock específicamente de la sucursal filtrada');
+            } else {
+                console.log('Envío a domicilio seleccionado - no hay sucursal filtrada');
+            }
+
             // Usar visitanteId fijo para pruebas (ya que removimos JWT)
             const ordenData = {
                 visitanteId: visitanteId, // Usar el visitanteId global
                 metodoPago: 'tarjeta',
-                sucursalId: null, // null para envío a domicilio
+                sucursalId: sucursalId, // null para stock general, o ID específico de sucursal filtrada
                 direccionEnvio: {
                     calle: 'Dirección por defecto',
                     ciudad: 'Ciudad por defecto',

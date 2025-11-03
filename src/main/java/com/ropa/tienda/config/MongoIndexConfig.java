@@ -35,17 +35,17 @@ public class MongoIndexConfig implements CommandLineRunner {
                 .append("inventario.stock", 1)
         ).named("idx_inventario_sucursal_stock");
         
-    ensureIndexSafe("articulos", inventarioIndex);
+    ensureIndexSafe("productos", inventarioIndex);
 
         // Índices para filtros comunes
-        ensureIndexSafe("articulos", new Index().on("categoria", Sort.Direction.ASC).named("idx_categoria"));
+        ensureIndexSafe("productos", new Index().on("categoria", Sort.Direction.ASC).named("idx_categoria"));
         
-        ensureIndexSafe("articulos", new Index().on("precio", Sort.Direction.ASC).named("idx_precio"));
+        ensureIndexSafe("productos", new Index().on("precio", Sort.Direction.ASC).named("idx_precio"));
 
         // Índices para atributos dinámicos más comunes
-        ensureIndexSafe("articulos", new Index().on("atributos.color", Sort.Direction.ASC).named("idx_atributos_color"));
+        ensureIndexSafe("productos", new Index().on("atributos.color", Sort.Direction.ASC).named("idx_atributos_color"));
         
-        ensureIndexSafe("articulos", new Index().on("atributos.talla", Sort.Direction.ASC).named("idx_atributos_talla"));
+        ensureIndexSafe("productos", new Index().on("atributos.talla", Sort.Direction.ASC).named("idx_atributos_talla"));
     }
 
     private void crearIndicesCarritos() {

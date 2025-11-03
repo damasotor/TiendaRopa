@@ -67,7 +67,22 @@ public class AuthController {
         Usuario usuario = new Usuario();
         usuario.setEmail(registroDto.getEmail());
         usuario.setPasswordHash(passwordEncoder.encode(registroDto.getPassword()));
-        usuario.setRol(new Rol("ROLE_USER"));
+        
+        // Agregar nombre si está presente
+        if (registroDto.getNombre() != null && !registroDto.getNombre().trim().isEmpty()) {
+            usuario.setNombre(registroDto.getNombre().trim());
+        }
+        
+        // Configurar rol (por defecto USER, pero permitir ADMIN desde el DTO)
+        String rolNombre = "ROLE_USER";
+        if (registroDto.getRol() != null && registroDto.getRol().startsWith("ROLE_")) {
+            rolNombre = registroDto.getRol();
+        }
+        usuario.setRol(new Rol(rolNombre));
+        
+        // Configurar campos adicionales
+        usuario.setFechaRegistro(java.time.LocalDateTime.now());
+        usuario.setActivo(true);
 
         userRepository.save(usuario);
         return new ResponseEntity<>("Usuario registrado exitosamente!", HttpStatus.OK);
