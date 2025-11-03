@@ -3,6 +3,7 @@ package com.ropa.tienda.model;
 import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -26,6 +27,7 @@ public class Sucursal {
     private String horarios;
 
     @NotNull(message = "La fecha de creación es obligatoria")
+    @Field("creado_en")
     private LocalDateTime creadoEn;
 
     // Constructor vacío

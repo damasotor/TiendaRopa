@@ -74,14 +74,33 @@ public class SecurityConfig {
                 )
 
                 // Configura las autorizaciones de peticiones
-                .authorizeHttpRequests(auth -> auth
-                        // Permite acceso a la ruta de login y registro
-                        .requestMatchers("/api/auth/**").permitAll()
-                        // Permite acceso a productos sin token (solo lectura)
-                        .requestMatchers("/api/productos").permitAll()
-                        // Cualquier otra solicitud requiere autenticación
-                        .anyRequest().authenticated()
-                )
+        .authorizeHttpRequests(auth -> auth
+            // Permite acceso a la ruta de login y registro
+            .requestMatchers("/api/auth/**").permitAll()
+            // Permite acceso a productos sin token (solo lectura)
+            .requestMatchers("/api/productos", "/api/productos/filtrar", "/api/sucursales").permitAll()
+            // Permitir recursos estáticos y páginas HTML
+            .requestMatchers(
+                "/",
+                "/index.html",
+                "/login.html",
+                "/admin.html",
+                "/static/**",
+                "/css/**",
+                "/js/**",
+                "/images/**",
+                "/favicon.ico"
+            ).permitAll()
+            // Rutas específicas para administradores
+            .requestMatchers("/api/users/**").hasRole("ADMIN")
+            .requestMatchers("/admin.html").hasRole("ADMIN")
+            // Rutas para usuarios autenticados (tanto ADMIN como USER)
+            .requestMatchers("/api/carrito/**").hasAnyRole("USER", "ADMIN")
+            .requestMatchers("/api/ordenes/**").hasAnyRole("USER", "ADMIN")
+            .requestMatchers("/api/sucursales/**").hasAnyRole("USER", "ADMIN")
+            // Cualquier otra solicitud requiere autenticación
+            .anyRequest().authenticated()
+        )
 
                 // *** CLAVE 2: AÑADE EL FILTRO JWT A LA CADENA ***
                 // Ejecuta tu filtro antes del filtro estándar de autenticación de usuario y contraseña

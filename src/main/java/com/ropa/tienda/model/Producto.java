@@ -5,6 +5,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -45,22 +46,26 @@ public class Producto {
     private List<Inventario> inventario = new ArrayList<>();
 
     @NotNull(message = "La fecha de creación es obligatoria")
+    @Field("creado_en")
     private LocalDateTime creadoEn;
 
     @NotNull(message = "La fecha de actualización es obligatoria")
+    @Field("actualizado_en")
     private LocalDateTime actualizadoEn;
 
     // Clase interna para el inventario por sucursal
     public static class Inventario {
-        @NotNull(message = "El ID de la sucursal es obligatorio")
-        private ObjectId sucursalId;
+    @NotNull(message = "El ID de la sucursal es obligatorio")
+    @org.springframework.data.mongodb.core.mapping.Field("sucursal_id")
+    private ObjectId sucursalId;
 
         @NotNull(message = "El stock es obligatorio")
         @Min(value = 0, message = "El stock debe ser no negativo")
         private Integer stock;
 
         @NotNull(message = "La última actualización es obligatoria")
-        private LocalDateTime ultimaActualizacion;
+    @Field("ultima_actualizacion")
+    private LocalDateTime ultimaActualizacion;
 
         // Constructor
         public Inventario() {}

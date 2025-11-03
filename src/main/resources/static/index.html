@@ -6,6 +6,74 @@
     <title>TiendaRopa - E-commerce</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
+        // Verificar autenticación al cargar la página
+        window.addEventListener('load', function() {
+            const token = localStorage.getItem('jwt-token');
+            if (!token) {
+                // Redireccionar al login si no hay token
+                window.location.href = '/login.html';
+                return;
+            }
+            // Verificar si el token es válido
+            verifyToken(token);
+        });
+
+        function verifyToken(token) {
+            fetch('/api/auth/verify', {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error('Token inválido');
+                }
+            })
+            .then(data => {
+                // Token válido, mostrar información del usuario
+                displayUserInfo(data);
+            })
+            .catch(error => {
+                console.error('Error verificando token:', error);
+                localStorage.removeItem('jwt-token');
+                localStorage.removeItem('userRole');
+                window.location.href = '/login.html';
+            });
+        }
+
+        function displayUserInfo(userData) {
+            const userInfoElement = document.getElementById('user-info');
+            const adminLinkElement = document.getElementById('admin-link');
+            const loginBtnElement = document.getElementById('loginBtn');
+            
+            if (userInfoElement) {
+                userInfoElement.innerHTML = `
+                    <span class="text-sm text-gray-600">Bienvenido: ${userData.email}</span>
+                    <button onclick="logout()" class="ml-4 text-sm text-red-600 hover:text-red-800">Cerrar Sesión</button>
+                `;
+            }
+
+            // Ocultar botón de login cuando el usuario está autenticado
+            if (loginBtnElement) {
+                loginBtnElement.style.display = 'none';
+            }
+
+            // Mostrar enlace de admin solo si es administrador
+            if (userData.rol === 'ROLE_ADMIN' && adminLinkElement) {
+                adminLinkElement.style.display = 'block';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('jwt-token');
+            localStorage.removeItem('userRole');
+            window.location.href = '/login.html';
+        }
+
         tailwind.config = {
             theme: {
                 extend: {
@@ -38,13 +106,16 @@
 
             <!-- Navegación -->
             <nav class="hidden md:flex space-x-8">
-                <a href="#" class="text-gray-500 hover:text-gray-900">Inicio</a>
-                <a href="#productos" class="text-gray-500 hover:text-gray-900">Productos</a>
-                <a href="#" class="text-gray-500 hover:text-gray-900">Sucursales</a>
+                <a href="#" onclick="mostrarProductos()" class="text-gray-500 hover:text-gray-900">Productos</a>
+                <a href="#" onclick="mostrarOrdenes()" class="text-gray-500 hover:text-gray-900">Órdenes</a>
+                <a id="admin-link" href="/admin.html" class="text-red-600 hover:text-red-800" style="display: none;">Panel Admin</a>
             </nav>
 
-            <!-- Carrito y Login -->
+            <!-- Información de usuario y Carrito -->
             <div class="flex items-center space-x-4">
+                <div id="user-info" class="text-sm">
+                    <!-- La información del usuario se cargará aquí -->
+                </div>
                 <button id="carritoBtn" class="relative p-2 text-gray-500 hover:text-gray-900">
                     🛒
                     <span id="carritoBadge" class="carrito-badge absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center hidden">0</span>
@@ -58,7 +129,7 @@
 </header>
 
 <!-- Filtros -->
-<section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+<section id="filtrosSeccion" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
     <div class="bg-white rounded-lg shadow p-6">
         <h2 class="text-lg font-semibold mb-4">Filtros</h2>
         
@@ -131,6 +202,23 @@
     </div>
 </section>
 
+<!-- Órdenes -->
+<section id="ordenes" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6" style="display: none;">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-gray-900">Mis Órdenes</h2>
+    </div>
+
+    <!-- Lista de órdenes -->
+    <div id="ordenesLista" class="space-y-4">
+        <!-- Las órdenes se cargarán dinámicamente aquí -->
+    </div>
+
+    <!-- Mensaje cuando no hay órdenes -->
+    <div id="sinOrdenes" class="text-center py-12 hidden">
+        <p class="text-gray-500 text-lg">No tienes órdenes realizadas aún.</p>
+    </div>
+</section>
+
 <!-- Modal del Carrito -->
 <div id="carritoModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
     <div class="absolute right-0 top-0 h-full w-96 bg-white shadow-xl">
@@ -149,7 +237,7 @@
                     <span class="text-lg font-semibold">Total:</span>
                     <span id="carritoTotal" class="text-lg font-bold text-blue-600">$0</span>
                 </div>
-                <button id="finalizarCompra" class="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700">
+                <button id="finalizarCompra" onclick="finalizarCompra()" class="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700">
                     Finalizar Compra
                 </button>
             </div>
@@ -159,16 +247,40 @@
 
 <script>
     const API_URL = 'http://localhost:8080/api';
-    let visitanteId = localStorage.getItem('visitanteId') || 'visitante_' + Date.now();
+    
+    // Función para obtener visitanteId
+    function getVisitanteId() {
+        const token = localStorage.getItem('jwt-token');
+        if (token) {
+            try {
+                // Si el usuario está logueado, usar su email como visitanteId
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                return payload.sub; // El email está en el 'sub' del JWT
+            } catch (error) {
+                console.error('Error decodificando token:', error);
+            }
+        }
+        // Si no está logueado, usar un ID temporal
+        return localStorage.getItem('visitanteId') || 'visitante_' + Date.now();
+    }
+    
+    let visitanteId = getVisitanteId();
     let carrito = { items: [], total: 0 };
     let productos = [];
     let sucursales = [];
 
-    // Guardar visitante ID en localStorage
-    localStorage.setItem('visitanteId', visitanteId);
+    // Guardar visitante ID en localStorage solo si no está logueado
+    if (!localStorage.getItem('jwt-token')) {
+        localStorage.setItem('visitanteId', visitanteId);
+    }
 
     // Inicialización
     document.addEventListener('DOMContentLoaded', function() {
+        // Mostrar sección de productos y filtros por defecto
+        document.getElementById('productos').style.display = 'block';
+        document.getElementById('filtrosSeccion').style.display = 'block';
+        document.getElementById('ordenes').style.display = 'none';
+        
         cargarSucursales();
         cargarProductos();
         cargarCarrito();
@@ -208,7 +320,9 @@
             const response = await fetch(`${API_URL}/productos`);
             if (response.ok) {
                 productos = await response.json();
-                mostrarProductos(productos);
+                mostrarProductosEnGrid(productos);
+            } else {
+                console.error('Error en respuesta del servidor:', response.status);
             }
         } catch (error) {
             console.error('Error cargando productos:', error);
@@ -216,7 +330,7 @@
     }
 
     // Mostrar productos en el grid
-    function mostrarProductos(productosLista) {
+    function mostrarProductosEnGrid(productosLista) {
         const grid = document.getElementById('productosGrid');
         const sinResultados = document.getElementById('sinResultados');
         const resultadosInfo = document.getElementById('resultadosInfo');
@@ -240,10 +354,15 @@
                     <div class="p-4">
                         <h3 class="font-semibold text-gray-900 mb-2">${producto.nombre}</h3>
                         <p class="text-gray-600 text-sm mb-2">${producto.descripcion || ''}</p>
-                        <div class="flex justify-between items-center">
+                        <div class="flex justify-between items-center mb-3">
                             <span class="text-lg font-bold text-blue-600">$${producto.precio}</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <label class="text-sm text-gray-700">Cantidad:</label>
+                            <input type="number" id="cantidad-${producto.id}" value="1" min="1" max="10" 
+                                   class="w-16 px-2 py-1 border border-gray-300 rounded text-sm">
                             <button onclick="agregarAlCarrito('${producto.id}')" 
-                                    class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                                    class="flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
                                 Agregar
                             </button>
                         </div>
@@ -282,7 +401,9 @@
 
             if (response.ok) {
                 const productosFiltrados = await response.json();
-                mostrarProductos(productosFiltrados);
+                mostrarProductosEnGrid(productosFiltrados);
+            } else {
+                console.error('Error en la respuesta:', response.status);
             }
         } catch (error) {
             console.error('Error aplicando filtros:', error);
@@ -295,20 +416,39 @@
         document.getElementById('colorFiltro').value = '';
         document.getElementById('precioMax').value = '';
         document.getElementById('sucursalFiltro').value = '';
-        mostrarProductos(productos);
+        mostrarProductosEnGrid(productos);
     }
 
     // Agregar producto al carrito usando CU-002
     async function agregarAlCarrito(productoId) {
+        // Obtener la cantidad seleccionada
+        const cantidadInput = document.getElementById(`cantidad-${productoId}`);
+        const cantidad = cantidadInput ? parseInt(cantidadInput.value) : 1;
+        
+        // Validar cantidad
+        if (cantidad < 1 || cantidad > 10) {
+            alert('La cantidad debe estar entre 1 y 10');
+            return;
+        }
+        
+        // Obtener el token para autenticación
+        const token = localStorage.getItem('jwt-token');
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        
+        // Agregar token si está disponible
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+        
         try {
             const response = await fetch(`${API_URL}/carrito/${visitanteId}/items`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: headers,
                 body: JSON.stringify({
                     articuloId: productoId,
-                    cantidad: 1
+                    cantidad: cantidad
                 })
             });
 
@@ -316,7 +456,15 @@
                 carrito = await response.json();
                 actualizarBadgeCarrito();
                 // Mostrar notificación
-                alert('Producto agregado al carrito');
+                alert(`${cantidad} producto(s) agregado(s) al carrito`);
+                // Resetear cantidad a 1
+                if (cantidadInput) {
+                    cantidadInput.value = 1;
+                }
+            } else {
+                console.error('Error al agregar al carrito:', response.status);
+                const errorText = await response.text();
+                console.error('Detalles del error:', errorText);
             }
         } catch (error) {
             console.error('Error agregando al carrito:', error);
@@ -325,8 +473,19 @@
 
     // Cargar carrito
     async function cargarCarrito() {
+        // Obtener el token para autenticación
+        const token = localStorage.getItem('jwt-token');
+        const headers = {};
+        
+        // Agregar token si está disponible
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+        
         try {
-            const response = await fetch(`${API_URL}/carrito/${visitanteId}`);
+            const response = await fetch(`${API_URL}/carrito/${visitanteId}`, {
+                headers: headers
+            });
             if (response.ok) {
                 carrito = await response.json();
                 actualizarBadgeCarrito();
@@ -350,8 +509,10 @@
     }
 
     // Mostrar modal del carrito
-    function mostrarCarrito() {
+    async function mostrarCarrito() {
         document.getElementById('carritoModal').classList.remove('hidden');
+        // Cargar el carrito más reciente antes de mostrarlo
+        await cargarCarrito();
         actualizarVistaCarrito();
     }
 
@@ -365,22 +526,29 @@
         const carritoItems = document.getElementById('carritoItems');
         const carritoTotal = document.getElementById('carritoTotal');
         
-        if (carrito.items.length === 0) {
+        if (!carrito || !carrito.items || carrito.items.length === 0) {
             carritoItems.innerHTML = '<p class="text-gray-500">Tu carrito está vacío</p>';
         } else {
-            carritoItems.innerHTML = carrito.items.map(item => {
-                const producto = productos.find(p => p.id === item.articuloId);
+            carritoItems.innerHTML = carrito.items.map((item, index) => {
+                // Ahora articuloId debería ser un string directo
+                const articuloIdStr = item.articuloId;
+                
+                // Buscar producto por ID
+                const producto = productos.find(p => p.id === articuloIdStr);
+                
+                const nombreProducto = producto ? producto.nombre : `Producto no encontrado (ID: ${articuloIdStr})`;
+                
                 return `
-                    <div class="flex justify-between items-center p-3 border rounded">
-                        <div>
-                            <h4 class="font-medium">${producto ? producto.nombre : 'Producto'}</h4>
+                    <div class="flex justify-between items-center p-3 border rounded mb-2">
+                        <div class="flex-1">
+                            <h4 class="font-medium text-gray-900">${nombreProducto}</h4>
                             <p class="text-sm text-gray-600">Cantidad: ${item.cantidad}</p>
                             <p class="text-sm text-gray-600">$${item.precioUnitario} c/u</p>
                         </div>
                         <div class="text-right">
-                            <p class="font-semibold">$${item.subtotal}</p>
-                            <button onclick="eliminarDelCarrito('${item.articuloId}')" 
-                                    class="text-red-600 text-sm hover:underline">
+                            <p class="font-semibold text-lg">$${item.subtotal}</p>
+                            <button onclick="eliminarDelCarrito('${articuloIdStr}')" 
+                                    class="bg-red-600 text-white px-2 py-1 rounded text-sm hover:bg-red-700 mt-1">
                                 Eliminar
                             </button>
                         </div>
@@ -389,17 +557,30 @@
             }).join('');
         }
         
-        carritoTotal.textContent = `$${carrito.total}`;
+        carritoTotal.textContent = carrito && carrito.total ? `$${carrito.total}` : '$0';
     }
 
     // Eliminar del carrito
     async function eliminarDelCarrito(articuloId) {
+        if (!confirm('¿Estás seguro de que quieres eliminar este producto del carrito?')) {
+            return;
+        }
+        
+        // Obtener el token para autenticación
+        const token = localStorage.getItem('jwt-token');
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        
+        // Agregar token si está disponible
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+        
         try {
             const response = await fetch(`${API_URL}/carrito/${visitanteId}/items`, {
                 method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: headers,
                 body: JSON.stringify({
                     articuloId: articuloId
                 })
@@ -409,9 +590,236 @@
                 carrito = await response.json();
                 actualizarBadgeCarrito();
                 actualizarVistaCarrito();
+                alert('Producto eliminado del carrito');
+            } else {
+                const errorText = await response.text();
+                console.error('Error al eliminar del carrito:', response.status, errorText);
+                alert('Error al eliminar el producto del carrito');
             }
         } catch (error) {
             console.error('Error eliminando del carrito:', error);
+            alert('Error de conexión al eliminar del carrito');
+        }
+    }
+
+    // Función para extraer ID de ObjectId o string
+    function extraerIdOrden(id) {
+        if (!id) return 'N/A';
+        
+        // Si ya es un string, devolverlo directamente
+        if (typeof id === 'string') {
+            return id;
+        }
+        
+        // Si es un objeto, intentar extraer el ID
+        if (typeof id === 'object') {
+            // Prioridad: $oid, luego _bsontype, luego timestamp
+            if (id.$oid) return id.$oid;
+            if (id.timestamp) {
+                // Convertir timestamp a hexadecimal (estilo ObjectId)
+                return id.timestamp.toString(16).padStart(8, '0') + 
+                       Math.random().toString(16).substring(2, 10);
+            }
+            // Como último recurso, usar JSON.stringify y extraer hash
+            const str = JSON.stringify(id);
+            return btoa(str).substring(0, 8); // Base64 de los primeros caracteres
+        }
+        
+        // Fallback final
+        return String(id).substring(0, 8) || 'TEMP';
+    }
+
+    // Función para mostrar la sección de órdenes
+    function mostrarOrdenes() {
+        // Ocultar la sección de productos y filtros
+        document.getElementById('productos').style.display = 'none';
+        document.getElementById('filtrosSeccion').style.display = 'none';
+        // Mostrar la sección de órdenes
+        document.getElementById('ordenes').style.display = 'block';
+        // Cargar las órdenes del usuario
+        cargarOrdenes();
+    }
+
+    // Función para mostrar la sección de productos
+    function mostrarProductos() {
+        // Mostrar la sección de productos y filtros
+        document.getElementById('productos').style.display = 'block';
+        document.getElementById('filtrosSeccion').style.display = 'block';
+        // Ocultar la sección de órdenes
+        document.getElementById('ordenes').style.display = 'none';
+        
+        // Asegurar que los productos estén cargados y mostrados
+        if (productos.length === 0) {
+            cargarProductos();
+        } else {
+            mostrarProductosEnGrid(productos);
+        }
+    }
+
+    // Función para cargar las órdenes del usuario
+    async function cargarOrdenes() {
+        try {
+            const token = localStorage.getItem('jwt-token');
+            const response = await fetch('/api/ordenes/mis-ordenes', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const ordenes = await response.json();
+                mostrarOrdenesEnUI(ordenes);
+            } else {
+                console.error('Error al cargar órdenes:', response.status);
+                document.getElementById('sinOrdenes').classList.remove('hidden');
+            }
+        } catch (error) {
+            console.error('Error cargando órdenes:', error);
+            document.getElementById('sinOrdenes').classList.remove('hidden');
+        }
+    }
+
+    // Función para mostrar las órdenes en la UI
+    function mostrarOrdenesEnUI(ordenes) {
+        const ordenesLista = document.getElementById('ordenesLista');
+        const sinOrdenes = document.getElementById('sinOrdenes');
+
+        if (!ordenes || ordenes.length === 0) {
+            sinOrdenes.classList.remove('hidden');
+            ordenesLista.innerHTML = '';
+            return;
+        }
+
+        sinOrdenes.classList.add('hidden');
+
+        ordenesLista.innerHTML = ordenes.map(orden => {
+            const fecha = new Date(orden.fechaPedido).toLocaleDateString();
+            const estado = orden.estado;
+            const estadoColor = getEstadoColor(estado);
+            
+            // Usar la función para extraer el ID correctamente
+            const ordenId = extraerIdOrden(orden.id);
+
+            return `
+                <div class="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900">Orden #${ordenId}</h3>
+                            <p class="text-sm text-gray-600">Fecha: ${fecha}</p>
+                        </div>
+                        <div>
+                            <span class="px-3 py-1 rounded-full text-sm font-medium ${estadoColor}">
+                                ${estado.charAt(0).toUpperCase() + estado.slice(1)}
+                            </span>
+                            <p class="text-lg font-bold text-gray-900 mt-1">$${orden.total}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="border-t pt-4">
+                        <h4 class="font-medium text-gray-900 mb-2">Productos:</h4>
+                        <div class="space-y-2">
+                            ${orden.items.map(item => {
+                                const producto = productos.find(p => p.id === item.articuloId);
+                                const nombreProducto = producto ? producto.nombre : 'Producto no encontrado';
+                                return `
+                                    <div class="flex justify-between text-sm">
+                                        <span>${nombreProducto} (x${item.cantidad})</span>
+                                        <span>$${item.subtotal}</span>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                    
+                    ${orden.direccionEnvio ? `
+                        <div class="border-t pt-4 mt-4">
+                            <h4 class="font-medium text-gray-900 mb-2">Dirección de envío:</h4>
+                            <p class="text-sm text-gray-600">
+                                ${orden.direccionEnvio.calle}, ${orden.direccionEnvio.ciudad}
+                            </p>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }).join('');
+    }
+
+    // Función para obtener el color del estado
+    function getEstadoColor(estado) {
+        switch (estado) {
+            case 'pendiente':
+                return 'bg-yellow-100 text-yellow-800';
+            case 'procesando':
+                return 'bg-blue-100 text-blue-800';
+            case 'enviado':
+                return 'bg-purple-100 text-purple-800';
+            case 'entregado':
+                return 'bg-green-100 text-green-800';
+            case 'cancelado':
+                return 'bg-red-100 text-red-800';
+            default:
+                return 'bg-gray-100 text-gray-800';
+        }
+    }
+
+    // Función para finalizar compra
+    async function finalizarCompra() {
+        try {
+            const token = localStorage.getItem('jwt-token');
+            
+            // Obtener el email del usuario desde el token JWT
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            const userEmail = payload.sub; // El email está en el 'sub' del JWT
+            
+            // Crear la orden a partir del carrito
+            const ordenData = {
+                visitanteId: userEmail, // Usar email como visitanteId
+                metodoPago: 'tarjeta', // Por ahora fijo, se puede hacer dinámico
+                sucursalId: null, // null para envío a domicilio
+                direccionEnvio: {
+                    calle: 'Dirección por defecto',
+                    ciudad: 'Ciudad por defecto',
+                    codigoPostal: '00000'
+                }
+            };
+
+            const response = await fetch('/api/ordenes', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(ordenData)
+            });
+
+            if (response.ok) {
+                const orden = await response.json();
+                console.log('Orden recibida:', orden);
+                
+                // Usar la función para extraer el ID correctamente
+                const ordenId = extraerIdOrden(orden.id);
+                alert('¡Compra realizada exitosamente! Orden #' + ordenId);
+                
+                // Limpiar carrito local inmediatamente
+                try {
+                    carrito = { items: [], total: 0 };
+                    actualizarBadgeCarrito();
+                    actualizarVistaCarrito();
+                    ocultarCarrito();
+                    console.log('Compra finalizada exitosamente');
+                } catch (cleanupError) {
+                    console.error('Error limpiando carrito:', cleanupError);
+                    // No mostrar error al usuario, ya que la compra fue exitosa
+                }
+            } else {
+                const errorText = await response.text();
+                console.error('Error al finalizar compra:', response.status, errorText);
+                alert('Error al procesar la compra. Por favor, intenta nuevamente.');
+            }
+        } catch (error) {
+            console.error('Error finalizando compra:', error);
+            alert('Error de conexión al procesar la compra');
         }
     }
 

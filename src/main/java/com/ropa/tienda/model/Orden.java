@@ -55,7 +55,7 @@ public class Orden {
     // Clase interna para los ítems de la orden
     public static class ItemOrden {
         @NotNull(message = "El ID del artículo es obligatorio")
-        private ObjectId articuloId;
+        private String articuloId; // Cambiar de ObjectId a String
 
         @NotNull(message = "La cantidad es obligatoria")
         @Min(value = 1, message = "La cantidad debe ser al menos 1")
@@ -72,7 +72,7 @@ public class Orden {
         // Constructor
         public ItemOrden() {}
 
-        public ItemOrden(ObjectId articuloId, Integer cantidad, Double precioUnitario, Double subtotal) {
+        public ItemOrden(String articuloId, Integer cantidad, Double precioUnitario, Double subtotal) {
             this.articuloId = articuloId;
             this.cantidad = cantidad;
             this.precioUnitario = precioUnitario;
@@ -80,11 +80,11 @@ public class Orden {
         }
 
         // Getters y Setters
-        public ObjectId getArticuloId() {
+        public String getArticuloId() {
             return articuloId;
         }
 
-        public void setArticuloId(ObjectId articuloId) {
+        public void setArticuloId(String articuloId) {
             this.articuloId = articuloId;
         }
 

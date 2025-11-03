@@ -10,12 +10,10 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import com.ropa.tienda.security.JwtTokenProvider;
-import java.util.Collections;
+import java.util.Map;
+import java.util.HashMap;
 import com.ropa.tienda.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -84,5 +82,23 @@ public class AuthController {
         userRepository.save(usuario);
 
         return new ResponseEntity<>("Usuario registrado exitosamente!", HttpStatus.OK);
+    }
+
+    @GetMapping("/verify")
+    public ResponseEntity<?> verifyToken() {
+        // Si llegamos aquí, el JWT es válido (se verifica en el filtro)
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()) {
+            String email = authentication.getName();
+            String rol = authentication.getAuthorities().iterator().next().getAuthority();
+            
+            Map<String, String> response = new HashMap<>();
+            response.put("email", email);
+            response.put("rol", rol);
+            response.put("status", "valid");
+            
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Token inválido");
     }
 }

@@ -66,7 +66,7 @@ public class CarritoController {
 
             // Verificar si el item ya existe en el carrito
             Optional<Carrito.ItemCarrito> itemExistente = carrito.getItems().stream()
-                .filter(item -> item.getArticuloId().toString().equals(request.articuloId()))
+                .filter(item -> item.getArticuloId().equals(request.articuloId()))
                 .findFirst();
 
             if (itemExistente.isPresent()) {
@@ -77,7 +77,7 @@ public class CarritoController {
             } else {
                 // Agregar nuevo item
                 Carrito.ItemCarrito nuevoItem = new Carrito.ItemCarrito(
-                    new ObjectId(request.articuloId()),
+                    request.articuloId(), // Usar el ID como string directamente
                     request.cantidad(),
                     producto.get().getPrecio(),
                     request.cantidad() * producto.get().getPrecio()
@@ -119,7 +119,7 @@ public class CarritoController {
             
             // Remover item del carrito
             carrito.getItems().removeIf(item -> 
-                item.getArticuloId().toString().equals(request.articuloId()));
+                item.getArticuloId().equals(request.articuloId()));
 
             // Recalcular total
             double nuevoTotal = carrito.getItems().stream()

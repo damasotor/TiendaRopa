@@ -39,7 +39,7 @@ public class Carrito {
     // Clase interna para los items del carrito
     public static class ItemCarrito {
         @NotNull(message = "El ID del artículo es obligatorio")
-        private ObjectId articuloId;
+        private String articuloId; // Cambiar de ObjectId a String
 
         @NotNull(message = "La cantidad es obligatoria")
         @Min(value = 1, message = "La cantidad debe ser al menos 1")
@@ -56,7 +56,7 @@ public class Carrito {
         // Constructor
         public ItemCarrito() {}
 
-        public ItemCarrito(ObjectId articuloId, Integer cantidad, Double precioUnitario, Double subtotal) {
+        public ItemCarrito(String articuloId, Integer cantidad, Double precioUnitario, Double subtotal) {
             this.articuloId = articuloId;
             this.cantidad = cantidad;
             this.precioUnitario = precioUnitario;
@@ -64,11 +64,11 @@ public class Carrito {
         }
 
         // Getters y Setters
-        public ObjectId getArticuloId() {
+        public String getArticuloId() {
             return articuloId;
         }
 
-        public void setArticuloId(ObjectId articuloId) {
+        public void setArticuloId(String articuloId) {
             this.articuloId = articuloId;
         }
 

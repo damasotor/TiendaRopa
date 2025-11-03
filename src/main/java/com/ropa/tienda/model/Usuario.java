@@ -2,6 +2,7 @@ package com.ropa.tienda.model;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
 
 // Anotaciones de validación (javax.validation)
 import jakarta.validation.Valid;
@@ -43,6 +44,7 @@ public class Usuario {
     private List<Direccion> direcciones = new ArrayList<>();
 
     @NotNull(message = "La fecha de creación es obligatoria")
+    @Field("creado_en")
     private LocalDateTime creadoEn = LocalDateTime.now(); // Inicializar para simplificar
 
     // --- Clase Interna para Direccion ---
