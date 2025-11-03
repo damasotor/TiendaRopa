@@ -16,7 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-@Document(collection = "articulos")
+@Document(collection = "productos")
 @CompoundIndexes({
         @CompoundIndex(name = "idx_inventario_sucursal_stock", def = "{'inventario.sucursal_id': 1, 'inventario.stock': 1}")
 })
@@ -44,6 +44,10 @@ public class Producto {
 
     // Lista de inventario embebida por sucursal
     private List<Inventario> inventario = new ArrayList<>();
+
+    // Campos simplificados para filtros
+    private String sucursal;
+    private Integer stock;
 
     @NotNull(message = "La fecha de creación es obligatoria")
     @Field("creado_en")
@@ -194,6 +198,22 @@ public class Producto {
 
     public void setActualizadoEn(LocalDateTime actualizadoEn) {
         this.actualizadoEn = actualizadoEn;
+    }
+
+    public String getSucursal() {
+        return sucursal;
+    }
+
+    public void setSucursal(String sucursal) {
+        this.sucursal = sucursal;
+    }
+
+    public Integer getStock() {
+        return stock;
+    }
+
+    public void setStock(Integer stock) {
+        this.stock = stock;
     }
 
     // Método para agregar un registro de inventario

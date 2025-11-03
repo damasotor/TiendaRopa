@@ -18,4 +18,10 @@ public interface CarritoRepository extends MongoRepository<Carrito, ObjectId> {
     
     // Eliminar carrito por visitante ID
     void deleteByVisitanteId(String visitanteId);
+    
+    // Buscar carrito por email de usuario
+    Optional<Carrito> findByUsuarioEmail(String usuarioEmail);
+    
+    // Verificar si existe un carrito para el usuario
+    Boolean existsByUsuarioEmail(String usuarioEmail);
 }

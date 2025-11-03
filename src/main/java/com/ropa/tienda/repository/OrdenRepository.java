@@ -25,4 +25,13 @@ public interface OrdenRepository extends MongoRepository<Orden, ObjectId> {
     
     // Buscar órdenes por usuario y estado
     List<Orden> findByUsuarioIdAndEstado(ObjectId usuarioId, String estado);
+    
+    // Buscar órdenes por visitanteId
+    List<Orden> findByVisitanteId(String visitanteId);
+    
+    // Buscar órdenes por email de usuario
+    List<Orden> findByUsuarioEmail(String usuarioEmail);
+    
+    // Buscar órdenes por email de usuario y estado
+    List<Orden> findByUsuarioEmailAndEstado(String usuarioEmail, String estado);
 }

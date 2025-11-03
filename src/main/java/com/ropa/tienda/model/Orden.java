@@ -1,5 +1,6 @@
 package com.ropa.tienda.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -19,9 +20,23 @@ public class Orden {
     @Id
     private ObjectId id;
 
-    @NotNull(message = "El ID del usuario es obligatorio")
+    // Método para JSON serialization que devuelve el ID como string
+    @JsonProperty("id")
+    public String getJsonId() {
+        return id != null ? id.toString() : null;
+    }
+
+    // Usuario ID (opcional si hay visitanteId)
     @Indexed(name = "idx_usuario_id")
     private ObjectId usuarioId;
+
+    // Campo para visitantes no autenticados
+    @Indexed(name = "idx_visitante_id")
+    private String visitanteId;
+
+    // Campo opcional para email del usuario autenticado
+    @Indexed(name = "idx_usuario_email")
+    private String usuarioEmail;
 
     @NotNull(message = "Los ítems son obligatorios")
     @jakarta.validation.constraints.Size(min = 1, message = "Debe haber al menos un ítem")
@@ -41,7 +56,7 @@ public class Orden {
     private String metodoPago;
 
     @NotNull(message = "El estado es obligatorio")
-    @Pattern(regexp = "^(pendiente|procesando|enviado|entregado|cancelado)$", message = "Estado no válido")
+    @Pattern(regexp = "^(pendiente|confirmada|procesando|enviado|entregado|cancelado)$", message = "Estado no válido")
     @Indexed(name = "idx_estado")
     private String estado;
 
@@ -182,6 +197,11 @@ public class Orden {
     public void setId(ObjectId id) {
         this.id = id;
     }
+    
+    // Método helper para obtener el ID como String para la API
+    public String getIdAsString() {
+        return id != null ? id.toString() : null;
+    }
 
     public ObjectId getUsuarioId() {
         return usuarioId;
@@ -189,6 +209,22 @@ public class Orden {
 
     public void setUsuarioId(ObjectId usuarioId) {
         this.usuarioId = usuarioId;
+    }
+
+    public String getVisitanteId() {
+        return visitanteId;
+    }
+
+    public void setVisitanteId(String visitanteId) {
+        this.visitanteId = visitanteId;
+    }
+
+    public String getUsuarioEmail() {
+        return usuarioEmail;
+    }
+
+    public void setUsuarioEmail(String usuarioEmail) {
+        this.usuarioEmail = usuarioEmail;
     }
 
     public List<ItemOrden> getItems() {

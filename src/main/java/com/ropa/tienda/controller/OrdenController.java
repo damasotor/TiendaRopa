@@ -39,44 +39,75 @@ public class OrdenController {
     @Autowired
     private UserRepository userRepository;
 
+    // Método helper para obtener email del usuario desde el token
+    private String obtenerEmailDeToken(String authHeader) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            return AuthController.activeTokens.get(token);
+        }
+        return null;
+    }
+
     // Crear orden desde carrito
     @PostMapping
-    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public ResponseEntity<?> crearOrden(@RequestBody CrearOrdenRequest request, 
-                                       Authentication authentication) {
+    public ResponseEntity<?> crearOrden(@RequestBody CrearOrdenRequest request,
+                                       @RequestHeader(value = "Authorization", required = false) String authHeader) {
         try {
-            // Obtener usuario autenticado
-            String emailUsuario = authentication.getName();
-            Optional<Usuario> usuarioOpt = userRepository.findByEmail(emailUsuario);
+            System.out.println("=== CREAR ORDEN ===");
+            System.out.println("Request recibido: " + request);
+            System.out.println("Auth header recibido: " + authHeader);
             
-            if (usuarioOpt.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body("Usuario no encontrado");
+            String userEmail = obtenerEmailDeToken(authHeader);
+            System.out.println("Email extraído del token: " + userEmail);
+            Carrito carrito = null;
+            
+            if (userEmail != null) {
+                // Usuario autenticado: buscar carrito por email
+                System.out.println("Buscando carrito por email: " + userEmail);
+                Optional<Carrito> carritoOpt = carritoRepository.findByUsuarioEmail(userEmail);
+                if (carritoOpt.isEmpty()) {
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Carrito no encontrado para el usuario");
+                }
+                carrito = carritoOpt.get();
+            } else {
+                // Visitante: buscar carrito por visitanteId
+                System.out.println("Buscando carrito por visitanteId: " + request.visitanteId());
+                Optional<Carrito> carritoOpt = carritoRepository.findByVisitanteId(request.visitanteId());
+                if (carritoOpt.isEmpty()) {
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Carrito no encontrado");
+                }
+                carrito = carritoOpt.get();
             }
 
-            Usuario usuario = usuarioOpt.get();
-
-            // Obtener carrito del visitante
-            Optional<Carrito> carritoOpt = carritoRepository.findByVisitanteId(request.visitanteId());
-            
-            if (carritoOpt.isEmpty() || carritoOpt.get().getItems().isEmpty()) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body("Carrito vacío o no encontrado");
+            if (carrito.getItems().isEmpty()) {
+                System.out.println("Carrito vacío");
+                return ResponseEntity.badRequest().body("El carrito está vacío");
             }
 
-            Carrito carrito = carritoOpt.get();
+            System.out.println("Carrito encontrado con " + carrito.getItems().size() + " items");
+            System.out.println("Total del carrito: " + carrito.getTotal());
 
             // Crear orden a partir del carrito
             Orden nuevaOrden = new Orden();
-            nuevaOrden.setUsuarioId(new ObjectId(usuario.getId()));
+            
+            if (userEmail != null) {
+                // Usuario autenticado
+                nuevaOrden.setUsuarioEmail(userEmail);
+            } else {
+                // Visitante
+                nuevaOrden.setVisitanteId(request.visitanteId());
+            }
+            
             nuevaOrden.setTotal(carrito.getTotal());
             nuevaOrden.setMetodoPago(request.metodoPago());
-            nuevaOrden.setEstado("pendiente");
+            nuevaOrden.setEstado("confirmada"); // Cambiar de "pendiente" a "confirmada"
             nuevaOrden.setFechaPedido(LocalDateTime.now());
             nuevaOrden.setFechaActualizacion(LocalDateTime.now());
 
             // Configurar sucursal o dirección de envío
-            if (request.sucursalId() != null) {
+            if (request.sucursalId() != null && !request.sucursalId().isEmpty()) {
                 nuevaOrden.setSucursalId(new ObjectId(request.sucursalId()));
             } else {
                 nuevaOrden.setDireccionEnvio(request.direccionEnvio());
@@ -94,14 +125,28 @@ public class OrdenController {
             nuevaOrden.setItems(itemsOrden);
 
             // Guardar orden
+            System.out.println("Guardando orden...");
             Orden ordenGuardada = ordenRepository.save(nuevaOrden);
+            System.out.println("Orden guardada con ID: " + ordenGuardada.getId());
 
             // Limpiar carrito después de crear la orden
             carritoRepository.deleteByVisitanteId(request.visitanteId());
+            System.out.println("Carrito limpiado para visitante: " + request.visitanteId());
 
-            return ResponseEntity.status(HttpStatus.CREATED).body(ordenGuardada);
+            // Crear respuesta simple con ID como string
+            var response = java.util.Map.of(
+                "id", ordenGuardada.getId().toString(),
+                "total", ordenGuardada.getTotal(),
+                "estado", ordenGuardada.getEstado(),
+                "metodoPago", ordenGuardada.getMetodoPago(),
+                "fechaPedido", ordenGuardada.getFechaPedido().toString()
+            );
+            
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
 
         } catch (Exception e) {
+            System.err.println("Error al crear orden: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error al crear la orden: " + e.getMessage());
         }
@@ -124,6 +169,61 @@ public class OrdenController {
             return ResponseEntity.ok(ordenes);
 
         } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error al obtener órdenes: " + e.getMessage());
+        }
+    }
+
+    // Endpoint temporal para visitantes sin autenticación - devuelve órdenes recientes
+    @GetMapping("/visitante/ordenes")
+    public ResponseEntity<?> obtenerOrdenesVisitante() {
+        try {
+            // Como no tenemos autenticación, devolvemos las órdenes más recientes
+            // En un sistema real, esto debería asociarse al visitanteId de alguna manera
+            List<Orden> ordenesRecientes = ordenRepository.findAll();
+            
+            // Limitamos a las últimas 10 órdenes para demo
+            if (ordenesRecientes.size() > 10) {
+                ordenesRecientes = ordenesRecientes.subList(0, 10);
+            }
+            
+            return ResponseEntity.ok(ordenesRecientes);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error al obtener órdenes: " + e.getMessage());
+        }
+    }
+
+    // Endpoint para obtener órdenes de un visitante específico o usuario autenticado
+    @GetMapping("/visitante/{visitanteId}")
+    public ResponseEntity<?> obtenerOrdenesPorVisitante(@PathVariable String visitanteId,
+                                                       @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            System.out.println("=== OBTENER ÓRDENES POR VISITANTE ===");
+            System.out.println("VisitanteId: " + visitanteId);
+            System.out.println("Auth header recibido: " + authHeader);
+            
+            String userEmail = obtenerEmailDeToken(authHeader);
+            System.out.println("Email extraído del token: " + userEmail);
+            List<Orden> ordenes;
+            
+            if (userEmail != null) {
+                // Usuario autenticado: buscar por email
+                System.out.println("Buscando órdenes para usuario: " + userEmail);
+                ordenes = ordenRepository.findByUsuarioEmail(userEmail);
+            } else {
+                // Visitante: buscar por visitanteId
+                System.out.println("Buscando órdenes para visitante: " + visitanteId);
+                ordenes = ordenRepository.findByVisitanteId(visitanteId);
+            }
+            
+            System.out.println("Órdenes encontradas: " + ordenes.size());
+            
+            return ResponseEntity.ok(ordenes);
+
+        } catch (Exception e) {
+            System.err.println("Error al obtener órdenes: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error al obtener órdenes: " + e.getMessage());
         }
@@ -212,5 +312,64 @@ public class OrdenController {
     public ResponseEntity<List<Orden>> obtenerOrdenesPorEstado(@PathVariable String estado) {
         List<Orden> ordenes = ordenRepository.findByEstado(estado);
         return ResponseEntity.ok(ordenes);
+    }
+
+    // Endpoint temporal para actualizar órdenes pendientes a confirmadas
+    @PostMapping("/actualizar-pendientes")
+    public ResponseEntity<?> actualizarOrdenesPendientes() {
+        try {
+            System.out.println("=== ACTUALIZANDO ÓRDENES PENDIENTES ===");
+            List<Orden> ordenesPendientes = ordenRepository.findByEstado("pendiente");
+            System.out.println("Órdenes pendientes encontradas: " + ordenesPendientes.size());
+            
+            for (Orden orden : ordenesPendientes) {
+                orden.setEstado("confirmada");
+                orden.setFechaActualizacion(LocalDateTime.now());
+                ordenRepository.save(orden);
+                System.out.println("Orden actualizada: " + orden.getId() + " -> confirmada");
+            }
+            
+            return ResponseEntity.ok(java.util.Map.of(
+                "mensaje", "Órdenes actualizadas exitosamente",
+                "ordenesActualizadas", ordenesPendientes.size()
+            ));
+            
+        } catch (Exception e) {
+            System.err.println("Error al actualizar órdenes: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error al actualizar órdenes: " + e.getMessage());
+        }
+    }
+
+    // Endpoint para forzar actualización de TODAS las órdenes a confirmadas
+    @PostMapping("/forzar-actualizar-todas")
+    public ResponseEntity<?> forzarActualizarTodasLasOrdenes() {
+        try {
+            System.out.println("=== FORZANDO ACTUALIZACIÓN DE TODAS LAS ÓRDENES ===");
+            List<Orden> todasLasOrdenes = ordenRepository.findAll();
+            System.out.println("Total órdenes encontradas: " + todasLasOrdenes.size());
+            
+            int actualizadas = 0;
+            for (Orden orden : todasLasOrdenes) {
+                if (!"confirmada".equals(orden.getEstado())) {
+                    orden.setEstado("confirmada");
+                    orden.setFechaActualizacion(LocalDateTime.now());
+                    ordenRepository.save(orden);
+                    System.out.println("Orden actualizada: " + orden.getId() + " -> confirmada");
+                    actualizadas++;
+                }
+            }
+            
+            return ResponseEntity.ok(java.util.Map.of(
+                "mensaje", "Todas las órdenes actualizadas exitosamente",
+                "ordenesActualizadas", actualizadas,
+                "totalOrdenes", todasLasOrdenes.size()
+            ));
+            
+        } catch (Exception e) {
+            System.err.println("Error al actualizar órdenes: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error al actualizar órdenes: " + e.getMessage());
+        }
     }
 }

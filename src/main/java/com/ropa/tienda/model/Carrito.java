@@ -20,6 +20,9 @@ public class Carrito {
     @NotBlank(message = "El ID del visitante no puede estar vacío")
     private String visitanteId;
 
+    // Campo opcional para email del usuario autenticado
+    private String usuarioEmail;
+
     @NotNull(message = "El campo registrado es obligatorio")
     private Boolean registrado;
 
@@ -125,6 +128,14 @@ public class Carrito {
 
     public void setVisitanteId(String visitanteId) {
         this.visitanteId = visitanteId;
+    }
+
+    public String getUsuarioEmail() {
+        return usuarioEmail;
+    }
+
+    public void setUsuarioEmail(String usuarioEmail) {
+        this.usuarioEmail = usuarioEmail;
     }
 
     public Boolean getRegistrado() {

@@ -9,12 +9,16 @@
         // Verificar autenticación al cargar la página
         window.addEventListener('load', function() {
             const token = localStorage.getItem('jwt-token');
-            if (!token) {
-                // Redireccionar al login si no hay token
-                window.location.href = '/login.html';
+            
+            if (!token || token === 'null' || token === 'undefined') {
+                // No hay token, mostrar como visitante
+                localStorage.removeItem('jwt-token');
+                localStorage.removeItem('userRole');
+                displayGuestUser();
                 return;
             }
-            // Verificar si el token es válido
+            
+            // Hay token, verificar si es válido
             verifyToken(token);
         });
 
@@ -34,15 +38,45 @@
                 }
             })
             .then(data => {
-                // Token válido, mostrar información del usuario
+                // Token válido, mostrar información del usuario autenticado
                 displayUserInfo(data);
             })
             .catch(error => {
                 console.error('Error verificando token:', error);
+                // Token inválido, limpiar y mostrar como visitante
                 localStorage.removeItem('jwt-token');
                 localStorage.removeItem('userRole');
-                window.location.href = '/login.html';
+                displayGuestUser();
             });
+        }
+
+        function displayGuestUser() {
+            const userInfoElement = document.getElementById('user-info');
+            const adminLinkElement = document.getElementById('admin-link');
+            const loginBtnElement = document.getElementById('loginBtn');
+            
+            // Obtener ID único del visitante para mostrarlo
+            const currentVisitanteId = getVisitanteId();
+            const shortId = currentVisitanteId.split('_')[1] ? currentVisitanteId.split('_')[1].slice(-4) : 'nuevo';
+            
+            if (userInfoElement) {
+                userInfoElement.innerHTML = `
+                    <span class="text-sm text-gray-600">Visitante #${shortId}</span>
+                `;
+            }
+
+            // Mostrar botón de login para visitantes
+            if (loginBtnElement) {
+                loginBtnElement.style.display = 'block';
+                loginBtnElement.onclick = function() {
+                    window.location.href = '/login.html';
+                };
+            }
+
+            // Ocultar enlace de admin para visitantes
+            if (adminLinkElement) {
+                adminLinkElement.style.display = 'none';
+            }
         }
 
         function displayUserInfo(userData) {
@@ -69,9 +103,31 @@
         }
 
         function logout() {
+            const token = localStorage.getItem('jwt-token');
+            
+            // Llamar al endpoint de logout en el servidor si hay token
+            if (token && token !== 'null' && token !== 'undefined') {
+                fetch('/api/auth/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + token,
+                        'Content-Type': 'application/json'
+                    }
+                }).catch(error => {
+                    console.error('Error al cerrar sesión en el servidor:', error);
+                });
+            }
+            
+            // Limpiar datos locales
             localStorage.removeItem('jwt-token');
             localStorage.removeItem('userRole');
-            window.location.href = '/login.html';
+            
+            // Cambiar a modo visitante
+            displayGuestUser();
+            
+            // Limpiar el carrito si es necesario
+            carrito = { items: [], total: 0 };
+            actualizarBadgeCarrito();
         }
 
         tailwind.config = {
@@ -151,10 +207,15 @@
                 <label class="block text-sm font-medium text-gray-700 mb-2">Color</label>
                 <select id="colorFiltro" class="w-full border border-gray-300 rounded-lg px-3 py-2">
                     <option value="">Todos los colores</option>
-                    <option value="rojo">Rojo</option>
                     <option value="azul">Azul</option>
-                    <option value="negro">Negro</option>
+                    <option value="rojo">Rojo</option>
+                    <option value="verde">Verde</option>
                     <option value="blanco">Blanco</option>
+                    <option value="negro">Negro</option>
+                    <option value="gris">Gris</option>
+                    <option value="marrón">Marrón</option>
+                    <option value="amarillo">Amarillo</option>
+                    <option value="beige">Beige</option>
                 </select>
             </div>
 
@@ -251,17 +312,33 @@
     // Función para obtener visitanteId
     function getVisitanteId() {
         const token = localStorage.getItem('jwt-token');
-        if (token) {
+        if (token && token !== 'null' && token !== 'undefined') {
             try {
-                // Si el usuario está logueado, usar su email como visitanteId
-                const payload = JSON.parse(atob(token.split('.')[1]));
-                return payload.sub; // El email está en el 'sub' del JWT
+                // Verificar que el token tenga el formato correcto (3 partes separadas por puntos)
+                const parts = token.split('.');
+                if (parts.length === 3) {
+                    const payload = JSON.parse(atob(parts[1]));
+                    return payload.sub; // El email está en el 'sub' del JWT
+                } else {
+                    // Token simple, intentar verificar con el servidor
+                    // Para este caso, usar un identificador basado en el token
+                    return 'user_' + token.slice(-8);
+                }
             } catch (error) {
                 console.error('Error decodificando token:', error);
+                // Limpiar token inválido
+                localStorage.removeItem('jwt-token');
             }
         }
-        // Si no está logueado, usar un ID temporal
-        return localStorage.getItem('visitanteId') || 'visitante_' + Date.now();
+        
+        // Si no está logueado o el token es inválido, usar sessionStorage para visitantes
+        let visitanteId = sessionStorage.getItem('visitanteId');
+        if (!visitanteId) {
+            visitanteId = 'visitante_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            sessionStorage.setItem('visitanteId', visitanteId);
+            console.log('Nuevo visitanteId generado:', visitanteId);
+        }
+        return visitanteId;
     }
     
     let visitanteId = getVisitanteId();
@@ -269,10 +346,7 @@
     let productos = [];
     let sucursales = [];
 
-    // Guardar visitante ID en localStorage solo si no está logueado
-    if (!localStorage.getItem('jwt-token')) {
-        localStorage.setItem('visitanteId', visitanteId);
-    }
+    console.log('Visitante ID inicializado:', visitanteId);
 
     // Inicialización
     document.addEventListener('DOMContentLoaded', function() {
@@ -298,17 +372,18 @@
     // Cargar sucursales
     async function cargarSucursales() {
         try {
-            const response = await fetch(`${API_URL}/sucursales`);
-            if (response.ok) {
-                sucursales = await response.json();
-                const select = document.getElementById('sucursalFiltro');
-                sucursales.forEach(sucursal => {
-                    const option = document.createElement('option');
-                    option.value = sucursal.id;
-                    option.textContent = sucursal.nombre;
-                    select.appendChild(option);
-                });
-            }
+            // Usar nombres de sucursales fijos basados en nuestros datos de prueba
+            const sucursalesDisponibles = ['Centro', 'Punta Carretas', 'Maldonado'];
+            const select = document.getElementById('sucursalFiltro');
+            
+            sucursalesDisponibles.forEach(nombreSucursal => {
+                const option = document.createElement('option');
+                option.value = nombreSucursal;
+                option.textContent = nombreSucursal;
+                select.appendChild(option);
+            });
+            
+            console.log('Sucursales cargadas:', sucursalesDisponibles);
         } catch (error) {
             console.error('Error cargando sucursales:', error);
         }
@@ -374,10 +449,14 @@
 
     // Aplicar filtros usando CU-001
     async function aplicarFiltros() {
+        console.log('=== APLICANDO FILTROS ===');
+        
         const categoria = document.getElementById('categoriaFiltro').value;
         const color = document.getElementById('colorFiltro').value;
         const precioMax = document.getElementById('precioMax').value;
         const sucursal = document.getElementById('sucursalFiltro').value;
+
+        console.log('Valores de filtros:', { categoria, color, precioMax, sucursal });
 
         const filtros = {
             atributos: {},
@@ -388,10 +467,15 @@
         if (categoria) filtros.categoria = categoria;
         if (color) filtros.atributos.color = color;
         if (precioMax) filtros.precioMax = parseFloat(precioMax);
-        if (sucursal) filtros.sucursales = [sucursal];
+        if (sucursal && sucursal !== 'all') filtros.sucursales = [sucursal];
+
+        console.log('Objeto filtros:', JSON.stringify(filtros, null, 2));
 
         try {
-            const response = await fetch(`${API_URL}/productos/filtrar`, {
+            const url = `${API_URL}/productos/filtrar`;
+            console.log('URL de filtros:', url);
+            
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -399,14 +483,26 @@
                 body: JSON.stringify(filtros)
             });
 
+            console.log('Respuesta del servidor:', response.status, response.statusText);
+
             if (response.ok) {
                 const productosFiltrados = await response.json();
+                console.log('Productos filtrados recibidos:', productosFiltrados.length, 'productos');
                 mostrarProductosEnGrid(productosFiltrados);
+                
+                // Actualizar contador de resultados
+                const resultadosInfo = document.getElementById('resultadosInfo');
+                if (resultadosInfo) {
+                    resultadosInfo.textContent = `${productosFiltrados.length} productos encontrados`;
+                }
             } else {
-                console.error('Error en la respuesta:', response.status);
+                const errorText = await response.text();
+                console.error('Error en la respuesta del servidor:', response.status, errorText);
+                alert('Error aplicando filtros: ' + errorText);
             }
         } catch (error) {
             console.error('Error aplicando filtros:', error);
+            alert('Error de conexión al aplicar filtros');
         }
     }
 
@@ -660,12 +756,19 @@
     async function cargarOrdenes() {
         try {
             const token = localStorage.getItem('jwt-token');
-            const response = await fetch('/api/ordenes/mis-ordenes', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
+            let headers = {
+                'Content-Type': 'application/json'
+            };
+
+            // Si hay token válido, agregarlo al header y usar endpoint de visitante con autorización
+            let endpoint = `/api/ordenes/visitante/${getVisitanteId()}`;
+            if (token && token !== 'null' && token !== 'undefined') {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            console.log('Cargando órdenes desde:', endpoint);
+            console.log('Headers:', headers);
+            const response = await fetch(endpoint, { headers });
 
             if (response.ok) {
                 const ordenes = await response.json();
@@ -710,7 +813,7 @@
                         </div>
                         <div>
                             <span class="px-3 py-1 rounded-full text-sm font-medium ${estadoColor}">
-                                ${estado.charAt(0).toUpperCase() + estado.slice(1)}
+                                ${getEstadoTexto(estado)}
                             </span>
                             <p class="text-lg font-bold text-gray-900 mt-1">$${orden.total}</p>
                         </div>
@@ -750,6 +853,8 @@
         switch (estado) {
             case 'pendiente':
                 return 'bg-yellow-100 text-yellow-800';
+            case 'confirmada':
+                return 'bg-green-100 text-green-800';
             case 'procesando':
                 return 'bg-blue-100 text-blue-800';
             case 'enviado':
@@ -763,19 +868,39 @@
         }
     }
 
+    // Función para obtener el texto amigable del estado
+    function getEstadoTexto(estado) {
+        switch (estado) {
+            case 'pendiente':
+                return 'Pendiente';
+            case 'confirmada':
+                return 'Realizada';
+            case 'procesando':
+                return 'Procesando';
+            case 'enviado':
+                return 'Enviado';
+            case 'entregado':
+                return 'Entregado';
+            case 'cancelado':
+                return 'Cancelado';
+            default:
+                return 'Desconocido';
+        }
+    }
+
     // Función para finalizar compra
     async function finalizarCompra() {
         try {
-            const token = localStorage.getItem('jwt-token');
-            
-            // Obtener el email del usuario desde el token JWT
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            const userEmail = payload.sub; // El email está en el 'sub' del JWT
-            
-            // Crear la orden a partir del carrito
+            // Verificar que hay items en el carrito
+            if (!carrito.items || carrito.items.length === 0) {
+                alert('Tu carrito está vacío');
+                return;
+            }
+
+            // Usar visitanteId fijo para pruebas (ya que removimos JWT)
             const ordenData = {
-                visitanteId: userEmail, // Usar email como visitanteId
-                metodoPago: 'tarjeta', // Por ahora fijo, se puede hacer dinámico
+                visitanteId: visitanteId, // Usar el visitanteId global
+                metodoPago: 'tarjeta',
                 sucursalId: null, // null para envío a domicilio
                 direccionEnvio: {
                     calle: 'Dirección por defecto',
@@ -784,38 +909,63 @@
                 }
             };
 
-            const response = await fetch('/api/ordenes', {
+            console.log('Creando orden con datos:', ordenData);
+
+            // Preparar headers con token si está disponible
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            
+            const token = localStorage.getItem('jwt-token');
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            const response = await fetch(`${API_URL}/ordenes`, {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
+                headers: headers,
                 body: JSON.stringify(ordenData)
             });
 
             if (response.ok) {
                 const orden = await response.json();
-                console.log('Orden recibida:', orden);
+                console.log('Orden creada exitosamente:', orden);
                 
-                // Usar la función para extraer el ID correctamente
-                const ordenId = extraerIdOrden(orden.id);
+                // Ahora el backend devuelve un objeto simple con id como string
+                const ordenId = orden.id || 'TEMP_' + Date.now();
+                
                 alert('¡Compra realizada exitosamente! Orden #' + ordenId);
                 
-                // Limpiar carrito local inmediatamente
+                // Limpiar carrito en el backend
                 try {
-                    carrito = { items: [], total: 0 };
-                    actualizarBadgeCarrito();
-                    actualizarVistaCarrito();
-                    ocultarCarrito();
-                    console.log('Compra finalizada exitosamente');
-                } catch (cleanupError) {
-                    console.error('Error limpiando carrito:', cleanupError);
-                    // No mostrar error al usuario, ya que la compra fue exitosa
+                    const limpiarResponse = await fetch(`${API_URL}/carrito/${visitanteId}`, {
+                        method: 'DELETE',
+                        headers: headers
+                    });
+                    
+                    if (limpiarResponse.ok) {
+                        console.log('Carrito limpiado exitosamente en el backend');
+                    } else {
+                        console.error('Error al limpiar carrito en backend:', limpiarResponse.status);
+                    }
+                } catch (limpiarError) {
+                    console.error('Error de conexión al limpiar carrito:', limpiarError);
                 }
+                
+                // Limpiar carrito local
+                carrito = { items: [], total: 0 };
+                actualizarBadgeCarrito();
+                actualizarVistaCarrito();
+                ocultarCarrito();
+                
+                // Recargar productos para actualizar stock
+                await cargarProductos();
+                mostrarProductosEnGrid(productos);
+                
             } else {
                 const errorText = await response.text();
                 console.error('Error al finalizar compra:', response.status, errorText);
-                alert('Error al procesar la compra. Por favor, intenta nuevamente.');
+                alert('Error al procesar la compra: ' + errorText);
             }
         } catch (error) {
             console.error('Error finalizando compra:', error);

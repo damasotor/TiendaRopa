@@ -6,14 +6,10 @@ import com.ropa.tienda.model.Rol;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
-import com.ropa.tienda.security.JwtTokenProvider;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import com.ropa.tienda.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -24,14 +20,9 @@ record AuthResponse(String token, String rol) {}
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    // Inyecta el AuthenticationManager que validará las credenciales
-    @Autowired
-    private AuthenticationManager authenticationManager;
+    // Mapa para asociar tokens con emails de usuarios
+    public static final Map<String, String> activeTokens = new ConcurrentHashMap<>();
 
-    @Autowired
-    private JwtTokenProvider tokenProvider;
-
-    // VARIABLES DE INSTANCIA
     @Autowired
     private UserRepository userRepository;
 
@@ -40,21 +31,28 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest) {
-
         try {
-            Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(loginRequest.email(), loginRequest.password())
-            );
-
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-
-            // *** REEMPLAZO CLAVE: GENERAR EL TOKEN REAL ***
-            String jwt = tokenProvider.generateToken(authentication);
-            String rol = authentication.getAuthorities().iterator().next().getAuthority();
-
-            // Devuelve el token JWT real
-            return ResponseEntity.ok(new AuthResponse(jwt, rol));
-
+            Usuario usuario = userRepository.findByEmail(loginRequest.email()).orElse(null);
+            if (usuario != null && passwordEncoder.matches(loginRequest.password(), usuario.getPasswordHash())) {
+                // Buscar si ya existe un token activo para este usuario
+                String existingToken = null;
+                for (Map.Entry<String, String> entry : activeTokens.entrySet()) {
+                    if (entry.getValue().equals(usuario.getEmail())) {
+                        existingToken = entry.getKey();
+                        break;
+                    }
+                }
+                
+                // Si no existe un token activo, crear uno nuevo
+                String token = existingToken != null ? existingToken : "token-" + usuario.getEmail().hashCode() + "-" + System.currentTimeMillis();
+                if (existingToken == null) {
+                    activeTokens.put(token, usuario.getEmail());
+                }
+                
+                return ResponseEntity.ok(new AuthResponse(token, usuario.getRol().getNombre()));
+            } else {
+                return ResponseEntity.status(401).body("Credenciales Inválidas. Acceso Denegado.");
+            }
         } catch (Exception e) {
             return ResponseEntity.status(401).body("Credenciales Inválidas. Acceso Denegado.");
         }
@@ -62,43 +60,60 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<String> registerUser(@RequestBody RegistroDto registroDto) {
-
         if (userRepository.existsByEmail(registroDto.getEmail())) {
             return new ResponseEntity<>("Email ya registrado!", HttpStatus.BAD_REQUEST);
         }
 
         Usuario usuario = new Usuario();
         usuario.setEmail(registroDto.getEmail());
-
-        // 1. Hashear la contraseña y usar el setter correcto: setPasswordHash
         usuario.setPasswordHash(passwordEncoder.encode(registroDto.getPassword()));
-
-        // 2. Asignar el Rol por defecto (asumiendo que tienes un constructor en Rol)
-        // Usamos el setter de un solo rol: setRol
         usuario.setRol(new Rol("ROLE_USER"));
 
-
-        // 3. Guardar en MongoDB
         userRepository.save(usuario);
-
         return new ResponseEntity<>("Usuario registrado exitosamente!", HttpStatus.OK);
     }
 
     @GetMapping("/verify")
-    public ResponseEntity<?> verifyToken() {
-        // Si llegamos aquí, el JWT es válido (se verifica en el filtro)
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated()) {
-            String email = authentication.getName();
-            String rol = authentication.getAuthorities().iterator().next().getAuthority();
+    public ResponseEntity<?> verifyToken(@RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            // Extraer el token del header Authorization
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+                
+                // Buscar el email asociado con este token
+                String userEmail = activeTokens.get(token);
+                if (userEmail != null) {
+                    // Buscar el usuario por email
+                    Usuario usuario = userRepository.findByEmail(userEmail).orElse(null);
+                    if (usuario != null) {
+                        Map<String, String> response = new HashMap<>();
+                        response.put("email", usuario.getEmail());
+                        response.put("rol", usuario.getRol().getNombre());
+                        response.put("status", "valid");
+                        return ResponseEntity.ok(response);
+                    }
+                }
+            }
             
-            Map<String, String> response = new HashMap<>();
-            response.put("email", email);
-            response.put("rol", rol);
-            response.put("status", "valid");
+            // Token inválido o no encontrado
+            return ResponseEntity.status(401).body("Token inválido");
             
-            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body("Error al verificar token");
         }
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Token inválido");
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(@RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+                activeTokens.remove(token);
+                return ResponseEntity.ok("Logout exitoso");
+            }
+            return ResponseEntity.ok("No hay sesión activa");
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error al cerrar sesión");
+        }
     }
 }

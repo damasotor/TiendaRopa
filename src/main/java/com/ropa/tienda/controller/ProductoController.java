@@ -2,13 +2,11 @@ package com.ropa.tienda.controller;
 
 import com.ropa.tienda.model.Producto;
 import com.ropa.tienda.repository.ProductoRepository;
-import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.aggregation.MatchOperation;
-import org.springframework.data.mongodb.core.aggregation.ProjectionOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -42,71 +40,83 @@ public class ProductoController {
     // RUTA PÚBLICA (Todos pueden ver los productos)
     @GetMapping
     public List<Producto> obtenerTodos() {
-        return productoRepository.findAll();
+        List<Producto> productos = productoRepository.findAll();
+        System.out.println("=== OBTENER TODOS LOS PRODUCTOS ===");
+        System.out.println("Total productos encontrados: " + productos.size());
+        if (!productos.isEmpty()) {
+            System.out.println("Ejemplo de ID del primer producto: " + productos.get(0).getId());
+            System.out.println("Nombre del primer producto: " + productos.get(0).getNombre());
+        }
+        return productos;
     }
 
     // CU-001: Filtro avanzado de productos usando Aggregation Pipeline
     @PostMapping("/filtrar")
     public ResponseEntity<List<Producto>> filtrarProductos(@RequestBody FiltroProductosRequest filtros) {
+        System.out.println("=== FILTRAR PRODUCTOS ===");
+        System.out.println("Filtros recibidos: " + filtros);
+        
         try {
             // Crear criterios de filtrado dinámicos
             Criteria criteria = new Criteria();
 
             // Filtrar por categoría si se especifica
             if (filtros.categoria() != null && !filtros.categoria().isEmpty()) {
+                System.out.println("Aplicando filtro por categoría: " + filtros.categoria());
                 criteria.and("categoria").is(filtros.categoria());
             }
 
             // Filtrar por rango de precios
             if (filtros.precioMin() != null) {
+                System.out.println("Aplicando filtro por precio mínimo: " + filtros.precioMin());
                 criteria.and("precio").gte(filtros.precioMin());
             }
             if (filtros.precioMax() != null) {
+                System.out.println("Aplicando filtro por precio máximo: " + filtros.precioMax());
                 criteria.and("precio").lte(filtros.precioMax());
             }
 
             // Filtrar por atributos dinámicos (color, talla, marca, etc.)
             if (filtros.atributos() != null && !filtros.atributos().isEmpty()) {
+                System.out.println("Aplicando filtros por atributos: " + filtros.atributos());
                 for (Map.Entry<String, Object> atributo : filtros.atributos().entrySet()) {
-                    criteria.and("atributos." + atributo.getKey()).is(atributo.getValue());
+                    String key = "atributos." + atributo.getKey();
+                    Object value = atributo.getValue();
+                    System.out.println("Filtro atributo: " + key + " = " + value);
+                    criteria.and(key).is(value);
                 }
             }
 
-            // Filtrar por stock en sucursales específicas
+            // Filtrar por sucursal (campo simple)
             if (filtros.sucursales() != null && !filtros.sucursales().isEmpty()) {
-                Integer stockMin = filtros.stockMinimo() != null ? filtros.stockMinimo() : 1;
-                
-                // Convertir string IDs a ObjectIds
-                List<ObjectId> sucursalIds = filtros.sucursales().stream()
-                    .map(ObjectId::new)
-                    .toList();
+                System.out.println("Aplicando filtro por sucursales: " + filtros.sucursales());
+                criteria.and("sucursal").in(filtros.sucursales());
+            }
 
-                criteria.and("inventario").elemMatch(
-                    Criteria.where("sucursalId").in(sucursalIds)
-                           .and("stock").gte(stockMin)
-                );
+            // Filtrar por stock mínimo (campo simple)
+            if (filtros.stockMinimo() != null) {
+                System.out.println("Aplicando filtro por stock mínimo: " + filtros.stockMinimo());
+                criteria.and("stock").gte(filtros.stockMinimo());
             }
 
             // Crear operaciones de aggregation
             MatchOperation matchOperation = Aggregation.match(criteria);
-            ProjectionOperation projectionOperation = Aggregation.project(
-                "nombre", "precio", "categoria", "atributos", "imagenes", "inventario"
-            );
 
             // Ejecutar aggregation pipeline
-            Aggregation aggregation = Aggregation.newAggregation(
-                matchOperation,
-                projectionOperation
-            );
+            Aggregation aggregation = Aggregation.newAggregation(matchOperation);
 
+            System.out.println("Ejecutando aggregation en colección 'productos'");
             AggregationResults<Producto> results = mongoTemplate.aggregate(
-                aggregation, "articulos", Producto.class);
+                aggregation, "productos", Producto.class);
 
             List<Producto> productos = results.getMappedResults();
+            System.out.println("Productos encontrados: " + productos.size());
 
             return ResponseEntity.ok(productos);
 
         } catch (Exception e) {
+            System.err.println("Error en filtrarProductos: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -120,7 +130,7 @@ public class ProductoController {
             
             Aggregation aggregation = Aggregation.newAggregation(matchOperation);
             AggregationResults<Producto> results = mongoTemplate.aggregate(
-                aggregation, "articulos", Producto.class);
+                aggregation, "productos", Producto.class);
 
             return ResponseEntity.ok(results.getMappedResults());
         } catch (Exception e) {
