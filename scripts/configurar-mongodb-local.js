@@ -2,7 +2,23 @@
 // Ejecutar en MongoDB Compass o MongoDB Shell
 
 // 1. Usar la base de datos tienda_ropa
-use tienda_ropa
+// Detectar el entorno: si existe la función use() (mongosh/mongo), usarla;
+// si no, intentar seleccionar la BD con db.getSiblingDB (cuando db está definido);
+// en otro caso lanzar un error indicando ejecutar el script en un shell de MongoDB.
+// Script de configuración para MongoDB Local
+// Ejecutar en MongoDB Compass o MongoDB Shell
+
+// 1. Usar la base de datos tienda_ropa
+// Detectar el entorno: si existe la función use() (mongosh/mongo), usarla;
+// si no, intentar seleccionar la BD con db.getSiblingDB (cuando db está definido);
+// en otro caso lanzar un error indicando ejecutar el script en un shell de MongoDB.
+if (typeof use === 'function') {
+  use('tiendaropa');
+} else if (typeof db !== 'undefined' && typeof db.getSiblingDB === 'function') {
+  db = db.getSiblingDB('tiendaropa');
+} else {
+  throw new Error("Este script debe ejecutarse en mongosh/mongo; si lo ejecutas desde Node.js usa el driver oficial de MongoDB y adapta el script.");
+}
 
 // 2. Crear colecciones con validación de esquemas
 
@@ -346,7 +362,6 @@ db.sucursales.insertMany([
     _id: ObjectId("507f1f77bcf86cd799439011"),
     nombre: "Centro",
     direccion: "18 de Julio 1234, Montevideo",
-    telefono: "+598 2901 1234",
     horario: "Lunes a Sábado 9:00-20:00",
     activa: true
   },
@@ -354,7 +369,6 @@ db.sucursales.insertMany([
     _id: ObjectId("507f1f77bcf86cd799439012"),
     nombre: "Punta Carretas",
     direccion: "Ellauri 350, Montevideo",
-    telefono: "+598 2711 5678",
     horario: "Lunes a Sábado 10:00-22:00",
     activa: true
   },
@@ -362,7 +376,6 @@ db.sucursales.insertMany([
     _id: ObjectId("507f1f77bcf86cd799439013"),
     nombre: "Maldonado",
     direccion: "Sarandí 123, Maldonado",
-    telefono: "+598 4222 9876",
     horario: "Lunes a Sábado 9:00-19:00",
     activa: true
   }
@@ -370,10 +383,19 @@ db.sucursales.insertMany([
 
 // 5. Crear usuario administrador por defecto
 db.usuarios.insertOne({
-  email: "admin@tiendaropa.com",
+  email: "admin@gmail.com",
   password: "$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqWF.hUMYIU8H8J4.Y8K/QS", // password: admin123
   nombre: "Administrador",
   rol: "ADMIN",
+  creadoEn: new Date()
+});
+
+// 6. Crear usuario de prueba
+db.usuarios.insertOne({
+  email: "usuario@gmail.com",
+  password: "$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqWF.hUMYIU8H8J4.Y8K/QS", // password: usuario123
+  nombre: "Usuario de Prueba",
+  rol: "USER",
   creadoEn: new Date()
 });
 
@@ -386,3 +408,6 @@ print("");
 print("Credenciales de administrador:");
 print("Email: admin@tiendaropa.com");
 print("Password: admin123");
+print("Credenciales de usuario de prueba:");
+print("Email: usuario@gmail.com");
+print("Password: usuario123");

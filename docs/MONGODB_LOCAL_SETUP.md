@@ -22,7 +22,7 @@
 
 2. **Crear la base de datos manualmente**
    - Click en "Create Database"
-   - Database Name: `tienda_ropa`
+   - Database Name: `tiendaropa`
    - Collection Name: `productos`
 
 3. **Crear las demás colecciones**

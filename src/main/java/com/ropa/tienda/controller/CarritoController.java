@@ -4,7 +4,7 @@ import com.ropa.tienda.model.Carrito;
 import com.ropa.tienda.model.Producto;
 import com.ropa.tienda.repository.CarritoRepository;
 import com.ropa.tienda.repository.ProductoRepository;
-import org.bson.types.ObjectId;
+//import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
+//import java.util.concurrent.ConcurrentHashMap;
 
 // DTOs para las peticiones
 record AgregarItemRequest(String articuloId, Integer cantidad, String sucursalId) {}

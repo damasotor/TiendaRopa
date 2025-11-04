@@ -3,7 +3,7 @@ package com.ropa.tienda.config;
 import com.ropa.tienda.model.Producto;
 import com.ropa.tienda.repository.ProductoRepository;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.stereotype.Component;
+//import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;

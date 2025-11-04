@@ -4,62 +4,10 @@
 print("=== INSERTANDO DATOS DE PRUEBA ===");
 
 // 1. CREAR USUARIOS
-print("\n1. Creando usuarios...");
-
-// Usuario Administrador
-const adminUser = {
-    username: "admin",
-    nombre: "Administrador",
-    apellido: "Sistema",
-    email: "admin@tiendaropa.com",
-    // Contraseña: "admin123" - encriptada con BCrypt
-    password: "$2a$10$rJ8H8K7vJ5KkM9qJ5kL8K.N1F2H8K7vJ5KkM9qJ5kL8K.N1F2H8K7u",
-    telefono: "099123456",
-    fechaNacimiento: new Date("1980-01-15"),
-    direccion: {
-        calle: "18 de Julio",
-        numero: "1234",
-        ciudad: "Montevideo",
-        departamento: "Montevideo",
-        codigoPostal: "11100"
-    },
-    roles: ["ADMIN", "USER"],
-    fechaRegistro: new Date(),
-    activo: true
-};
-
-// Usuario Común
-const regularUser = {
-    username: "usuario1",
-    nombre: "Juan",
-    apellido: "Pérez",
-    email: "juan.perez@email.com",
-    // Contraseña: "user123" - encriptada con BCrypt
-    password: "$2a$10$rJ8H8K7vJ5KkM9qJ5kL8K.N1F2H8K7vJ5KkM9qJ5kL8K.N1F2H8K7u",
-    telefono: "099654321",
-    fechaNacimiento: new Date("1990-05-20"),
-    direccion: {
-        calle: "Avenida Italia",
-        numero: "5678",
-        ciudad: "Montevideo",
-        departamento: "Montevideo",
-        codigoPostal: "11600"
-    },
-    roles: ["USER"],
-    fechaRegistro: new Date(),
-    activo: true
-};
-
-// Insertar usuarios
-try {
-    db.usuarios.insertOne(adminUser);
-    print("✅ Usuario administrador creado: admin / admin123");
-    
-    db.usuarios.insertOne(regularUser);
-    print("✅ Usuario común creado: usuario1 / user123");
-} catch (error) {
-    print("❌ Error creando usuarios: " + error);
-}
+print("\n1. Credenciales de usuarios de prueba:");
+print("Admin: admin@gmail.com / admin123");
+print("Usuario: usuario@gmail.com / user123");
+print("\nNota: Si necesitas crear estos usuarios desde este script, añade lógica para comprobar existencia e insertar en db.usuarios evitando duplicados.");
 
 // 2. OBTENER IDs DE SUCURSALES
 print("\n2. Obteniendo sucursales...");
