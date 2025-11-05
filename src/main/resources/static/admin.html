@@ -97,6 +97,13 @@
             if (response.ok) {
                 regMessage.textContent = 'Usuario registrado exitosamente!';
                 regMessage.classList.add('success');
+                
+                // Limpiar los campos del formulario después del registro exitoso
+                document.getElementById('regNombre').value = '';
+                document.getElementById('regEmail').value = '';
+                document.getElementById('regPassword').value = '';
+                document.getElementById('regRole').value = 'ROLE_USER'; // Resetear al valor por defecto
+                
                 fetchUsers();
             } else {
                 regMessage.textContent = `Fallo en el registro: ${responseText || response.statusText}`;

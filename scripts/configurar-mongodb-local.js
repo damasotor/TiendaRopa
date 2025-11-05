@@ -20,10 +20,87 @@ if (typeof use === 'function') {
   throw new Error("Este script debe ejecutarse en mongosh/mongo; si lo ejecutas desde Node.js usa el driver oficial de MongoDB y adapta el script.");
 }
 
-// 2. Crear colecciones con validación de esquemas
+// Función para manejar la creación segura de colecciones
+function crearColeccionSegura(nombreColeccion, opciones) {
+  try {
+    // Verificar si la colección ya existe usando getCollectionNames()
+    const colecciones = db.getCollectionNames();
+    if (colecciones.indexOf(nombreColeccion) !== -1) {
+      print(`La colección '${nombreColeccion}' ya existe, saltando creación`);
+      return false;
+    } else {
+      db.createCollection(nombreColeccion, opciones);
+      print(`Colección '${nombreColeccion}' creada exitosamente`);
+      return true;
+    }
+  } catch (error) {
+    // Si hay error, intentar crear la colección directamente
+    try {
+      db.createCollection(nombreColeccion, opciones);
+      print(`Colección '${nombreColeccion}' creada exitosamente`);
+      return true;
+    } catch (createError) {
+      print(`Error al crear la colección '${nombreColeccion}': ${createError.message}`);
+      return false;
+    }
+  }
+}
+
+// Función para limpiar índices conflictivos
+function limpiarIndicesConflictivos() {
+  print("Verificando y limpiando índices conflictivos...");
+  
+  const colecciones = ["productos", "carritos", "ordenes", "usuarios", "sucursales"];
+  
+  colecciones.forEach(coleccion => {
+    try {
+      // Verificar si la colección existe antes de intentar obtener índices
+      const coleccionesExistentes = db.getCollectionNames();
+      if (coleccionesExistentes.indexOf(coleccion) === -1) {
+        // La colección no existe, no hay nada que limpiar
+        return;
+      }
+      
+      // Obtener índices existentes
+      const indices = db[coleccion].getIndexes();
+      let indicesEliminados = 0;
+      
+      // Eliminar índices automáticos que pueden causar conflictos
+      indices.forEach(index => {
+        if (index.name !== "_id_" && 
+            (index.name.endsWith("_1") || 
+             index.name.endsWith("_-1") || 
+             index.name.includes("_1_"))) {
+          try {
+            db[coleccion].dropIndex(index.name);
+            indicesEliminados++;
+          } catch (dropError) {
+            // Ignorar errores de índices que no existen
+          }
+        }
+      });
+      
+      if (indicesEliminados > 0) {
+        print(`  - Eliminados ${indicesEliminados} índices conflictivos de '${coleccion}'`);
+      }
+    } catch (error) {
+      // Solo mostrar errores que no sean "namespace does not exist"
+      if (!error.message.includes("ns does not exist")) {
+        print(`  - Error procesando ${coleccion}: ${error.message}`);
+      }
+    }
+  });
+  
+  print("Limpieza de índices completada");
+}
+
+// 2. Limpiar índices conflictivos antes de crear nuevos
+limpiarIndicesConflictivos();
+
+// 3. Crear colecciones con validación de esquemas
 
 // Colección de productos
-db.createCollection("productos", {
+crearColeccionSegura("productos", {
   validator: {
     $jsonSchema: {
       bsonType: "object",
@@ -38,7 +115,7 @@ db.createCollection("productos", {
           description: "Descripción del producto"
         },
         precio: {
-          bsonType: "double",
+          bsonType: ["double", "int"],
           minimum: 0,
           description: "Precio del producto"
         },
@@ -62,24 +139,23 @@ db.createCollection("productos", {
           bsonType: "array",
           items: {
             bsonType: "object",
-            required: ["sucursalId", "stock"],
             properties: {
-              sucursalId: {
+              sucursal_id: {
                 bsonType: "string",
                 description: "ID de la sucursal"
               },
               stock: {
-                bsonType: "int",
+                bsonType: ["int", "double"],
                 minimum: 0,
                 description: "Stock disponible"
               },
               stockMinimo: {
-                bsonType: "int",
+                bsonType: ["int", "double"],
                 minimum: 0,
                 description: "Stock mínimo antes de reabastecimiento"
               },
               stockMaximo: {
-                bsonType: "int",
+                bsonType: ["int", "double"],
                 minimum: 0,
                 description: "Stock máximo permitido"
               }
@@ -88,7 +164,7 @@ db.createCollection("productos", {
           description: "Inventario por sucursal"
         },
         stock: {
-          bsonType: "int",
+          bsonType: ["int", "double"],
           minimum: 0,
           description: "Stock total simplificado"
         },
@@ -110,7 +186,7 @@ db.createCollection("productos", {
 });
 
 // Colección de carritos
-db.createCollection("carritos", {
+crearColeccionSegura("carritos", {
   validator: {
     $jsonSchema: {
       bsonType: "object",
@@ -176,7 +252,7 @@ db.createCollection("carritos", {
 });
 
 // Colección de órdenes
-db.createCollection("ordenes", {
+crearColeccionSegura("ordenes", {
   validator: {
     $jsonSchema: {
       bsonType: "object",
@@ -266,41 +342,63 @@ db.createCollection("ordenes", {
 });
 
 // Colección de usuarios
-db.createCollection("usuarios", {
-  validator: {
-    $jsonSchema: {
-      bsonType: "object",
-      required: ["email", "password", "nombre"],
-      properties: {
-        email: {
-          bsonType: "string",
-          pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
-          description: "Email del usuario"
+// Definir JSON Schema alineado al modelo Java: passwordHash (no "password") y rol como objeto con "nombre"
+const schemaUsuarios = {
+  $jsonSchema: {
+    bsonType: "object",
+    required: ["email", "passwordHash", "nombre"],
+    properties: {
+      email: {
+        bsonType: "string",
+        pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
+        description: "Email del usuario"
+      },
+      passwordHash: {
+        bsonType: "string",
+        description: "Contraseña hasheada (BCrypt)"
+      },
+      nombre: {
+        bsonType: "string",
+        description: "Nombre del usuario"
+      },
+      rol: {
+        bsonType: "object",
+        required: ["nombre"],
+        properties: {
+          nombre: {
+            bsonType: "string",
+            enum: ["ROLE_USER", "ROLE_ADMIN"],
+            description: "Nombre del rol con prefijo ROLE_"
+          }
         },
-        password: {
-          bsonType: "string",
-          description: "Contraseña hasheada"
-        },
-        nombre: {
-          bsonType: "string",
-          description: "Nombre del usuario"
-        },
-        rol: {
-          bsonType: "string",
-          enum: ["USER", "ADMIN"],
-          description: "Rol del usuario"
-        },
-        creadoEn: {
-          bsonType: "date",
-          description: "Fecha de creación"
-        }
+        description: "Rol del usuario (objeto)"
+      },
+      creadoEn: {
+        bsonType: "date",
+        description: "Fecha de creación"
       }
     }
   }
-});
+};
+
+// Crear colección si no existe con el validador correcto
+crearColeccionSegura("usuarios", { validator: schemaUsuarios });
+
+// Asegurar (o actualizar) el validador de la colección usuarios vía collMod para entornos ya creados
+try {
+  db.runCommand({
+    collMod: "usuarios",
+    validator: schemaUsuarios,
+    validationLevel: "moderate"
+  });
+  print("Validador de 'usuarios' actualizado (collMod)");
+} catch (e) {
+  // Silenciar errores si la operación no es soportada en la versión o ya está aplicado
+  print("Aviso: No se pudo actualizar el validador de 'usuarios' via collMod: " + e.message);
+}
 
 // Colección de sucursales
-db.createCollection("sucursales", {
+crearColeccionSegura("sucursales", {
   validator: {
     $jsonSchema: {
       bsonType: "object",
@@ -331,83 +429,227 @@ db.createCollection("sucursales", {
   }
 });
 
-// 3. Crear índices para mejorar el rendimiento
+// 4. Crear índices para mejorar el rendimiento (con nombres específicos para evitar conflictos)
 
-// Índices para productos
-db.productos.createIndex({ "categoria": 1 });
-db.productos.createIndex({ "precio": 1 });
-db.productos.createIndex({ "stock": 1 });
-db.productos.createIndex({ "inventario.sucursalId": 1, "inventario.stock": 1 });
-db.productos.createIndex({ "atributos.color": 1 });
-db.productos.createIndex({ "atributos.talla": 1 });
+print("Creando índices...");
 
-// Índices para carritos
-db.carritos.createIndex({ "visitanteId": 1 }, { unique: true });
-db.carritos.createIndex({ "usuarioEmail": 1 });
-db.carritos.createIndex({ "ultimaActividad": 1 }, { expireAfterSeconds: 2592000 }); // TTL 30 días
+try {
+  // Índices para productos - usando los mismos nombres que Spring Boot
+  db.productos.createIndex({ "categoria": 1 }, { name: "idx_categoria" });
+  db.productos.createIndex({ "precio": 1 }, { name: "idx_precio" });
+  db.productos.createIndex({ "inventario.sucursal_id": 1, "inventario.stock": 1 }, { name: "idx_inventario_sucursal_stock" });
+  db.productos.createIndex({ "atributos.color": 1 }, { name: "idx_atributos_color" });
+  db.productos.createIndex({ "atributos.talla": 1 }, { name: "idx_atributos_talla" });
+  print("Índices de productos creados");
+} catch (error) {
+  print("Error al crear índices de productos: " + error.message);
+}
 
-// Índices para órdenes
-db.ordenes.createIndex({ "visitanteId": 1 });
-db.ordenes.createIndex({ "usuarioEmail": 1 });
-db.ordenes.createIndex({ "usuarioId": 1 });
-db.ordenes.createIndex({ "estado": 1 });
-db.ordenes.createIndex({ "fechaPedido": -1 });
+try {
+  // Índices para carritos - usando los mismos nombres que Spring Boot
+  db.carritos.createIndex({ "visitanteId": 1 }, { name: "idx_visitante_id" });
+  db.carritos.createIndex({ "ultimaActividad": 1 }, { expireAfterSeconds: 2592000, name: "idx_carrito_ttl" }); // TTL 30 días
+  print("Índices de carritos creados");
+} catch (error) {
+  print("Error al crear índices de carritos: " + error.message);
+}
 
-// Índices para usuarios
-db.usuarios.createIndex({ "email": 1 }, { unique: true });
+try {
+  // Índices para órdenes - usando los mismos nombres que Spring Boot
+  db.ordenes.createIndex({ "usuarioId": 1 }, { name: "idx_orden_usuario_id" });
+  db.ordenes.createIndex({ "estado": 1 }, { name: "idx_estado" });
+  db.ordenes.createIndex({ "sucursalId": 1 }, { name: "idx_orden_sucursal_id" });
+  db.ordenes.createIndex({ "usuarioId": 1, "estado": 1 }, { name: "idx_usuario_estado" });
+  print("Índices de órdenes creados");
+} catch (error) {
+  print("Error al crear índices de órdenes: " + error.message);
+}
 
-// 4. Insertar datos de sucursales básicas
-db.sucursales.insertMany([
-  {
-    _id: ObjectId("507f1f77bcf86cd799439011"),
-    nombre: "Centro",
-    direccion: "18 de Julio 1234, Montevideo",
-    horario: "Lunes a Sábado 9:00-20:00",
-    activa: true
-  },
-  {
-    _id: ObjectId("507f1f77bcf86cd799439012"),
-    nombre: "Punta Carretas",
-    direccion: "Ellauri 350, Montevideo",
-    horario: "Lunes a Sábado 10:00-22:00",
-    activa: true
-  },
-  {
-    _id: ObjectId("507f1f77bcf86cd799439013"),
-    nombre: "Maldonado",
-    direccion: "Sarandí 123, Maldonado",
-    horario: "Lunes a Sábado 9:00-19:00",
-    activa: true
+try {
+  // Índices para usuarios - usando los mismos nombres que Spring Boot
+  db.usuarios.createIndex({ "email": 1 }, { unique: true, name: "email_1" }); // Mantener nombre estándar para unique
+  print("Índices de usuarios creados");
+} catch (error) {
+  print("Error al crear índices de usuarios: " + error.message);
+}
+
+try {
+  // Índices para sucursales - usando los mismos nombres que Spring Boot
+  db.sucursales.createIndex({ "nombre": 1 }, { name: "idx_sucursal_nombre" });
+  print("Índices de sucursales creados");
+} catch (error) {
+  print("Error al crear índices de sucursales: " + error.message);
+}
+
+// 5. Insertar datos de sucursales básicas (solo si no existen)
+try {
+  // Verificar si ya existen sucursales
+  if (db.sucursales.countDocuments() === 0) {
+    db.sucursales.insertMany([
+      {
+        _id: ObjectId("507f1f77bcf86cd799439011"),
+        nombre: "Centro",
+        direccion: "18 de Julio 1234, Montevideo",
+        telefono: "2908-1234",
+        horario: "Lunes a Sábado 9:00-20:00",
+        activa: true
+      },
+      {
+        _id: ObjectId("507f1f77bcf86cd799439012"),
+        nombre: "Punta Carretas",
+        direccion: "Ellauri 350, Montevideo",
+        telefono: "2908-5678",
+        horario: "Lunes a Sábado 10:00-22:00",
+        activa: true
+      },
+      {
+        _id: ObjectId("507f1f77bcf86cd799439013"),
+        nombre: "Maldonado",
+        direccion: "Sarandí 123, Maldonado",
+        telefono: "4222-9999",
+        horario: "Lunes a Sábado 9:00-19:00",
+        activa: true
+      }
+    ]);
+    print("Sucursales insertadas correctamente");
+  } else {
+    print("Las sucursales ya existen, saltando inserción");
   }
-]);
+} catch (error) {
+  print("Error al insertar sucursales: " + error.message);
+}
 
-// 5. Crear usuario administrador por defecto
-db.usuarios.insertOne({
-  email: "admin@gmail.com",
-  password: "$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqWF.hUMYIU8H8J4.Y8K/QS", // password: admin123
-  nombre: "Administrador",
-  rol: "ADMIN",
-  creadoEn: new Date()
-});
+// Migraciones de compatibilidad: renombrar campo password -> passwordHash si existe
+try {
+  const resRename = db.usuarios.updateMany(
+    { password: { $exists: true }, passwordHash: { $exists: false } },
+    { $rename: { "password": "passwordHash" } }
+  );
+  if (resRename && resRename.modifiedCount) {
+    print(`Usuarios migrados (password -> passwordHash): ${resRename.modifiedCount}`);
+  }
+} catch (e) {
+  print("Aviso: No se pudo realizar migración de password->passwordHash: " + e.message);
+}
 
-// 6. Crear usuario de prueba
-db.usuarios.insertOne({
-  email: "usuario@gmail.com",
-  password: "$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqWF.hUMYIU8H8J4.Y8K/QS", // password: usuario123
-  nombre: "Usuario de Prueba",
-  rol: "USER",
-  creadoEn: new Date()
-});
+// Migrar rol string -> objeto { nombre: "ROLE_*" }
+try {
+  // Caso común sin usar pipeline: valores USER/ADMIN
+  const resAdmin = db.usuarios.updateMany(
+    { rol: "ADMIN" },
+    { $set: { rol: { nombre: "ROLE_ADMIN" } } }
+  );
+  const resUser = db.usuarios.updateMany(
+    { rol: "USER" },
+    { $set: { rol: { nombre: "ROLE_USER" } } }
+  );
+  // Intento genérico con pipeline update (MongoDB 4.2+)
+  try {
+    const resGeneric = db.usuarios.updateMany(
+      { rol: { $type: "string" } },
+      [
+        {
+          $set: {
+            rol: {
+              nombre: {
+                $cond: [
+                  { $regexMatch: { input: "$rol", regex: /^ROLE_/ } },
+                  "$rol",
+                  { $concat: ["ROLE_", "$rol"] }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    );
+    if (resGeneric && resGeneric.modifiedCount) {
+      print(`Usuarios migrados (rol string -> objeto): ${resGeneric.modifiedCount}`);
+    } else if ((resAdmin && resAdmin.modifiedCount) || (resUser && resUser.modifiedCount)) {
+      print(`Usuarios migrados (rol string -> objeto): ${(resAdmin.modifiedCount||0)+(resUser.modifiedCount||0)}`);
+    }
+  } catch (e2) {
+    // Si el pipeline no es soportado, ya manejamos casos comunes arriba
+  }
+} catch (e) {
+  print("Aviso: No se pudo realizar migración de rol string->objeto: " + e.message);
+}
+
+// 6. Crear usuario administrador por defecto (solo si no existe)
+try {
+  if (db.usuarios.countDocuments({ email: "admin@gmail.com" }) === 0) {
+    db.usuarios.insertOne({
+      email: "admin@gmail.com",
+      passwordHash: "$2a$12$qYMdLfg7pfTDbTmXIQyppOayM.97GSSdV5.0HI8YpMrLwFwsCICs.", // password: admin123
+      nombre: "Administrador",
+      rol: { nombre: "ROLE_ADMIN" },
+      creadoEn: new Date()
+    });
+    print("Usuario administrador creado");
+  } else {
+    // Si el usuario ya existe, actualizar la contraseña para asegurar que sea correcta
+    db.usuarios.updateOne(
+      { email: "admin@gmail.com" },
+      { 
+        $set: { 
+          passwordHash: "$2a$12$qYMdLfg7pfTDbTmXIQyppOayM.97GSSdV5.0HI8YpMrLwFwsCICs.",
+          rol: { nombre: "ROLE_ADMIN" }
+        }
+      }
+    );
+    print("El usuario administrador ya existe - contraseña actualizada");
+  }
+} catch (error) {
+  print("Error al crear usuario administrador: " + error.message);
+}
+
+// 7. Crear usuario de prueba (solo si no existe)
+try {
+  if (db.usuarios.countDocuments({ email: "usuario@gmail.com" }) === 0) {
+    db.usuarios.insertOne({
+      email: "usuario@gmail.com",
+      passwordHash: "$2a$12$Fnot8cK3Mr9cTQgMZNWCdu13LGD4y8lCFuMOgAa1uJ4XXiQmck0oW", // password: password
+      nombre: "Usuario de Prueba",
+      rol: { nombre: "ROLE_USER" },
+      creadoEn: new Date()
+    });
+    print("Usuario de prueba creado");
+  } else {
+    // Si el usuario ya existe, actualizar la contraseña para asegurar que sea correcta
+    db.usuarios.updateOne(
+      { email: "usuario@gmail.com" },
+      { 
+        $set: { 
+          passwordHash: "$2a$12$Fnot8cK3Mr9cTQgMZNWCdu13LGD4y8lCFuMOgAa1uJ4XXiQmck0oW",
+          rol: { nombre: "ROLE_USER" }
+        }
+      }
+    );
+    print("El usuario de prueba ya existe - contraseña actualizada");
+  }
+} catch (error) {
+  print("Error al crear usuario de prueba: " + error.message);
+}
 
 print("¡Configuración de MongoDB completada!");
-print("Base de datos: tienda_ropa");
+print("Base de datos: tiendaropa");
 print("Colecciones creadas: productos, carritos, ordenes, usuarios, sucursales");
 print("Índices creados para optimización");
 print("Datos iniciales insertados");
+
+// Verificar que las contraseñas estén correctamente configuradas
+print("\n=== VERIFICACIÓN DE USUARIOS ===");
+const usuarios = db.usuarios.find({}, { email: 1, passwordHash: 1, rol: 1 }).toArray();
+usuarios.forEach(usuario => {
+  const passwordStatus = usuario.passwordHash && usuario.passwordHash.length > 0 ? "✓ OK" : "✗ VACÍA";
+  const rolNombre = usuario.rol && usuario.rol.nombre ? usuario.rol.nombre : JSON.stringify(usuario.rol);
+  print(`${usuario.email} (${rolNombre}): ${passwordStatus}`);
+});
+
 print("");
 print("Credenciales de administrador:");
-print("Email: admin@tiendaropa.com");
+print("Email: admin@gmail.com");
 print("Password: admin123");
 print("Credenciales de usuario de prueba:");
 print("Email: usuario@gmail.com");
-print("Password: usuario123");
+print("Password: password");

@@ -1,6 +1,5 @@
 package com.ropa.tienda.model;
 
-import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
@@ -61,7 +60,7 @@ public class Producto {
     public static class Inventario {
     @NotNull(message = "El ID de la sucursal es obligatorio")
     @org.springframework.data.mongodb.core.mapping.Field("sucursal_id")
-    private ObjectId sucursalId;
+    private String sucursalId;
 
         @NotNull(message = "El stock es obligatorio")
         @Min(value = 0, message = "El stock debe ser no negativo")
@@ -74,18 +73,18 @@ public class Producto {
         // Constructor
         public Inventario() {}
 
-        public Inventario(ObjectId sucursalId, Integer stock, LocalDateTime ultimaActualizacion) {
+        public Inventario(String sucursalId, Integer stock, LocalDateTime ultimaActualizacion) {
             this.sucursalId = sucursalId;
             this.stock = stock;
             this.ultimaActualizacion = ultimaActualizacion;
         }
 
         // Getters y Setters
-        public ObjectId getSucursalId() {
+        public String getSucursalId() {
             return sucursalId;
         }
 
-        public void setSucursalId(ObjectId sucursalId) {
+        public void setSucursalId(String sucursalId) {
             this.sucursalId = sucursalId;
         }
 

@@ -1,9 +1,7 @@
 package com.ropa.tienda.config;
 
-import com.ropa.tienda.model.Rol;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.convert.converter.Converter;
 import org.springframework.data.mongodb.core.convert.MongoCustomConversions;
 
 import java.util.List;
@@ -11,6 +9,10 @@ import java.util.List;
 @Configuration
 public class MongoConvertersConfig {
 
+    // Conversores comentados para permitir que Rol se serialice como objeto
+    // en lugar de string, cumpliendo con el schema de validación de MongoDB
+    
+    /*
     static class RolToStringConverter implements Converter<Rol, String> {
         @Override
         public String convert(Rol source) {
@@ -24,12 +26,12 @@ public class MongoConvertersConfig {
             return source == null ? null : new Rol(source);
         }
     }
+    */
 
     @Bean
     public MongoCustomConversions customConversions() {
         return new MongoCustomConversions(List.of(
-                new RolToStringConverter(),
-                new StringToRolConverter()
+                // Conversores removidos temporalmente
         ));
     }
 }

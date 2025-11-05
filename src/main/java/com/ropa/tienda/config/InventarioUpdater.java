@@ -95,23 +95,23 @@ public class InventarioUpdater implements CommandLineRunner {
                         stockMaldonado = stockTotal - stockCentro - stockPuntaCarretas;
                     }
                     
-                    // Crear inventario para Centro
+                    // Crear inventario para Centro (principal)
                     Producto.Inventario invCentro = new Producto.Inventario(
-                        sucursales.get(0).getId(), 
+                        sucursales.get(0).getId().toString(), 
                         stockCentro, 
                         LocalDateTime.now()
                     );
                     
                     // Crear inventario para Punta Carretas
                     Producto.Inventario invPuntaCarretas = new Producto.Inventario(
-                        sucursales.get(1).getId(), 
+                        sucursales.get(1).getId().toString(), 
                         stockPuntaCarretas, 
                         LocalDateTime.now()
                     );
                     
                     // Crear inventario para Maldonado
                     Producto.Inventario invMaldonado = new Producto.Inventario(
-                        sucursales.get(2).getId(), 
+                        sucursales.get(2).getId().toString(), 
                         stockMaldonado, 
                         LocalDateTime.now()
                     );
@@ -123,7 +123,7 @@ public class InventarioUpdater implements CommandLineRunner {
                     // Si no hay stock, crear inventario vacío
                     for (Sucursal sucursal : sucursales) {
                         Producto.Inventario invVacio = new Producto.Inventario(
-                            sucursal.getId(), 
+                            sucursal.getId().toString(), 
                             0, 
                             LocalDateTime.now()
                         );
@@ -156,21 +156,19 @@ public class InventarioUpdater implements CommandLineRunner {
         
         System.out.println(">>> ESTADÍSTICAS DE INVENTARIO:");
         
-        for (Sucursal sucursal : sucursales) {
-            int stockTotal = 0;
-            for (Producto producto : productos) {
-                if (producto.getInventario() != null) {
-                    for (Producto.Inventario inv : producto.getInventario()) {
-                        if (inv.getSucursalId().equals(sucursal.getId())) {
-                            stockTotal += inv.getStock();
+            for (Sucursal sucursal : sucursales) {
+                int stockTotal = 0;
+                for (Producto producto : productos) {
+                    if (producto.getInventario() != null) {
+                        for (Producto.Inventario inv : producto.getInventario()) {
+                            if (inv.getSucursalId().equals(sucursal.getId().toString())) {
+                                stockTotal += inv.getStock();
+                            }
                         }
                     }
                 }
-            }
-            System.out.println(">>> - " + sucursal.getNombre() + ": " + stockTotal + " unidades");
-        }
-        
-        // Stock total
+                System.out.println(">>> - " + sucursal.getNombre() + ": " + stockTotal + " unidades");
+            }        // Stock total
         int stockGlobal = productos.stream().mapToInt(p -> p.getStock() != null ? p.getStock() : 0).sum();
         System.out.println(">>> - TOTAL GLOBAL: " + stockGlobal + " unidades");
     }

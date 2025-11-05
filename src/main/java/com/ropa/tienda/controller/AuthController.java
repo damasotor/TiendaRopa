@@ -68,9 +68,13 @@ public class AuthController {
         usuario.setEmail(registroDto.getEmail());
         usuario.setPasswordHash(passwordEncoder.encode(registroDto.getPassword()));
         
-        // Agregar nombre si está presente
+        // Asegurar que siempre hay un nombre (requerido por el schema de MongoDB)
         if (registroDto.getNombre() != null && !registroDto.getNombre().trim().isEmpty()) {
             usuario.setNombre(registroDto.getNombre().trim());
+        } else {
+            // Si no se proporciona nombre, usar el email como nombre por defecto
+            String emailNombre = registroDto.getEmail().split("@")[0];
+            usuario.setNombre(emailNombre);
         }
         
         // Configurar rol (por defecto USER, pero permitir ADMIN desde el DTO)

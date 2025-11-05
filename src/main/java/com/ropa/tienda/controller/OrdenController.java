@@ -177,7 +177,7 @@ public class OrdenController {
                             
                             for (Producto.Inventario inv : producto.getInventario()) {
                                 // Verificar si esta es la sucursal del item específico
-                                if (sucursalItemId.equals(inv.getSucursalId().toString())) {
+                                if (sucursalItemId.equals(inv.getSucursalId())) {
                                     int stockDisponible = inv.getStock();
                                     if (stockDisponible >= cantidadRestante) {
                                         inv.setStock(stockDisponible - cantidadRestante);

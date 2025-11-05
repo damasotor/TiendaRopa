@@ -29,13 +29,13 @@ public class MongoIndexConfig implements CommandLineRunner {
 
     private void crearIndicesProductos() {
         // Índice compuesto para inventario (sucursal_id + stock) - CU-001
-        // Use the same field name as the @CompoundIndex on Producto (inventario.sucursal_id)
+        // Use the same field name as in MongoDB script (inventario.sucursal_id)
         IndexDefinition inventarioIndex = new CompoundIndexDefinition(
             new Document("inventario.sucursal_id", 1)
                 .append("inventario.stock", 1)
         ).named("idx_inventario_sucursal_stock");
         
-    ensureIndexSafe("productos", inventarioIndex);
+        ensureIndexSafe("productos", inventarioIndex);
 
         // Índices para filtros comunes
         ensureIndexSafe("productos", new Index().on("categoria", Sort.Direction.ASC).named("idx_categoria"));
@@ -50,10 +50,10 @@ public class MongoIndexConfig implements CommandLineRunner {
 
     private void crearIndicesCarritos() {
         // Índice TTL para auto-limpieza de carritos - CU-002
-    ensureIndexSafe("carritos", new Index().on("ultimaActividad", Sort.Direction.ASC)
-        .expire(java.time.Duration.ofDays(30))
-        .named("idx_carrito_ttl")
-    );
+        ensureIndexSafe("carritos", new Index().on("ultimaActividad", Sort.Direction.ASC)
+            .expire(java.time.Duration.ofDays(30))
+            .named("idx_carrito_ttl")
+        );
 
         // Índice por visitante ID
         ensureIndexSafe("carritos", new Index().on("visitanteId", Sort.Direction.ASC).named("idx_visitante_id"));
@@ -83,16 +83,13 @@ public class MongoIndexConfig implements CommandLineRunner {
     }
 
     private void crearIndicesSucursales() {
-        // Índice por ciudad
-        ensureIndexSafe("sucursales", new Index().on("ciudad", Sort.Direction.ASC).named("idx_sucursal_ciudad"));
-
         // Índice por nombre
         ensureIndexSafe("sucursales", new Index().on("nombre", Sort.Direction.ASC).named("idx_sucursal_nombre"));
     }
 
     /**
      * Try to create an index but do not fail startup if there is an existing index
-     * with the same name but different key specification (Mongo error 86 / IndexKeySpecsConflict).
+     * with the same name but different key specification or options.
      */
     private void ensureIndexSafe(String collection, IndexDefinition indexDefinition) {
         try {
@@ -101,7 +98,10 @@ public class MongoIndexConfig implements CommandLineRunner {
             Throwable cause = dae.getCause();
             if (cause instanceof MongoCommandException) {
                 MongoCommandException mce = (MongoCommandException) cause;
-                if ("IndexKeySpecsConflict".equals(mce.getErrorCodeName()) || mce.getCode() == 86) {
+                // Handle both IndexKeySpecsConflict (86) and IndexOptionsConflict (85)
+                if ("IndexKeySpecsConflict".equals(mce.getErrorCodeName()) || 
+                    "IndexOptionsConflict".equals(mce.getErrorCodeName()) ||
+                    mce.getCode() == 86 || mce.getCode() == 85) {
                     System.err.println("[WARN] Index conflict ignored for collection '" + collection + "': " + mce.getErrorMessage());
                     return;
                 }
@@ -109,9 +109,13 @@ public class MongoIndexConfig implements CommandLineRunner {
             // If we didn't handle it, rethrow to keep the original behavior
             throw dae;
         } catch (Exception e) {
-            // Last resort: if the message contains IndexKeySpecsConflict don't fail startup
+            // Last resort: if the message contains known index conflict errors, don't fail startup
             String msg = e.getMessage() != null ? e.getMessage() : "";
-            if (msg.contains("IndexKeySpecsConflict") || msg.contains("code: 86") || msg.contains("IndexKeySpecsConflict")) {
+            if (msg.contains("IndexKeySpecsConflict") || 
+                msg.contains("IndexOptionsConflict") ||
+                msg.contains("code: 86") || 
+                msg.contains("code: 85") ||
+                msg.contains("Index already exists")) {
                 System.err.println("[WARN] Index conflict ignored for collection '" + collection + "': " + msg);
                 return;
             }

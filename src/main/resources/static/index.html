@@ -100,6 +100,13 @@
             if (userData.rol === 'ROLE_ADMIN' && adminLinkElement) {
                 adminLinkElement.style.display = 'block';
             }
+            
+            // Actualizar visitanteId para usar el email del usuario autenticado
+            visitanteId = getVisitanteId();
+            console.log('Usuario autenticado, visitanteId actualizado a:', visitanteId);
+            
+            // Recargar carrito del usuario autenticado
+            cargarCarrito();
         }
 
         function logout() {
@@ -125,9 +132,11 @@
             // Cambiar a modo visitante
             displayGuestUser();
             
-            // Limpiar el carrito si es necesario
-            carrito = { items: [], total: 0 };
-            actualizarBadgeCarrito();
+            // Generar nuevo visitanteId para el nuevo visitante anónimo
+            visitanteId = getVisitanteId();
+            
+            // Cargar carrito del nuevo visitante (que estará vacío)
+            cargarCarrito();
         }
 
         tailwind.config = {
@@ -195,14 +204,10 @@
                 <label class="block text-sm font-medium text-gray-700 mb-2">Categoría</label>
                 <select id="categoriaFiltro" class="w-full border border-gray-300 rounded-lg px-3 py-2">
                     <option value="">Todas las categorías</option>
-                    <option value="Accesorios">Accesorios</option>
-                    <option value="Camisas">Camisas</option>
-                    <option value="Chaquetas">Chaquetas</option>
-                    <option value="Faldas">Faldas</option>
-                    <option value="Pantalones">Pantalones</option>
-                    <option value="Shorts">Shorts</option>
-                    <option value="Vestidos">Vestidos</option>
-                    <option value="Zapatos">Zapatos</option>
+                    <option value="accesorios">Accesorios</option>
+                    <option value="camisas">Camisas</option>
+                    <option value="pantalones">Pantalones</option>
+                    <option value="zapatos">Zapatos</option>
                 </select>
             </div>
 
