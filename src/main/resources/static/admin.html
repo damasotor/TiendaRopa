@@ -144,15 +144,11 @@
                 row.insertCell().textContent = user.rol ? user.rol.nombre : 'N/A';
 
                 const actionCell = row.insertCell();
-                if (user.rol && user.rol.nombre !== 'ROLE_ADMIN' && user.email !== 'admin@tienda.com') {
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.textContent = 'Eliminar';
-                    deleteBtn.classList.add('delete-btn');
-                    deleteBtn.onclick = () => deleteUser(user.id);
-                    actionCell.appendChild(deleteBtn);
-                } else {
-                    actionCell.textContent = 'Principal/Admin';
-                }
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = 'Eliminar';
+                deleteBtn.classList.add('delete-btn');
+                deleteBtn.onclick = () => deleteUser(user.id);
+                actionCell.appendChild(deleteBtn);
             });
         })
         .catch(error => {

@@ -100,13 +100,6 @@
             if (userData.rol === 'ROLE_ADMIN' && adminLinkElement) {
                 adminLinkElement.style.display = 'block';
             }
-            
-            // Actualizar visitanteId para usar el email del usuario autenticado
-            visitanteId = getVisitanteId();
-            console.log('Usuario autenticado, visitanteId actualizado a:', visitanteId);
-            
-            // Recargar carrito del usuario autenticado
-            cargarCarrito();
         }
 
         function logout() {
@@ -132,11 +125,9 @@
             // Cambiar a modo visitante
             displayGuestUser();
             
-            // Generar nuevo visitanteId para el nuevo visitante anónimo
-            visitanteId = getVisitanteId();
-            
-            // Cargar carrito del nuevo visitante (que estará vacío)
-            cargarCarrito();
+            // Limpiar el carrito si es necesario
+            carrito = { items: [], total: 0 };
+            actualizarBadgeCarrito();
         }
 
         tailwind.config = {
