@@ -439,7 +439,6 @@ try {
   db.productos.createIndex({ "precio": 1 }, { name: "idx_precio" });
   db.productos.createIndex({ "inventario.sucursal_id": 1, "inventario.stock": 1 }, { name: "idx_inventario_sucursal_stock" });
   db.productos.createIndex({ "atributos.color": 1 }, { name: "idx_atributos_color" });
-  db.productos.createIndex({ "atributos.talla": 1 }, { name: "idx_atributos_talla" });
   print("Índices de productos creados");
 } catch (error) {
   print("Error al crear índices de productos: " + error.message);
@@ -459,7 +458,6 @@ try {
   db.ordenes.createIndex({ "usuarioId": 1 }, { name: "idx_orden_usuario_id" });
   db.ordenes.createIndex({ "estado": 1 }, { name: "idx_estado" });
   db.ordenes.createIndex({ "sucursalId": 1 }, { name: "idx_orden_sucursal_id" });
-  db.ordenes.createIndex({ "usuarioId": 1, "estado": 1 }, { name: "idx_usuario_estado" });
   print("Índices de órdenes creados");
 } catch (error) {
   print("Error al crear índices de órdenes: " + error.message);

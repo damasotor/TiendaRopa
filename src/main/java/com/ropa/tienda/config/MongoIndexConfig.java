@@ -44,8 +44,6 @@ public class MongoIndexConfig implements CommandLineRunner {
 
         // Índices para atributos dinámicos más comunes
         ensureIndexSafe("productos", new Index().on("atributos.color", Sort.Direction.ASC).named("idx_atributos_color"));
-        
-        ensureIndexSafe("productos", new Index().on("atributos.talla", Sort.Direction.ASC).named("idx_atributos_talla"));
     }
 
     private void crearIndicesCarritos() {
@@ -73,13 +71,6 @@ public class MongoIndexConfig implements CommandLineRunner {
 
         // Índice por sucursal
         ensureIndexSafe("ordenes", new Index().on("sucursalId", Sort.Direction.ASC).named("idx_orden_sucursal_id"));
-
-        // Índice compuesto para consultas complejas (usuario + estado)
-        IndexDefinition usuarioEstadoIndex = new CompoundIndexDefinition(
-            new Document("usuarioId", 1).append("estado", 1)
-        ).named("idx_usuario_estado");
-        
-        ensureIndexSafe("ordenes", usuarioEstadoIndex);
     }
 
     private void crearIndicesSucursales() {
