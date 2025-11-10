@@ -49,6 +49,8 @@ public class Orden {
     @Indexed(name = "idx_sucursal_id")
     private ObjectId sucursalId;
 
+    // No serializar la dirección de envío en las respuestas JSON (solo aceptar en requests)
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
     private DireccionEnvio direccionEnvio;
 
     @NotNull(message = "El método de pago es obligatorio")

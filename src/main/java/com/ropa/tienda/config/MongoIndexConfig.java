@@ -23,7 +23,6 @@ public class MongoIndexConfig implements CommandLineRunner {
         crearIndicesProductos();
         crearIndicesCarritos();
         crearIndicesOrdenes();
-        crearIndicesSucursales();
         System.out.println(">>> Índices MongoDB creados correctamente");
     }
 
@@ -60,28 +59,8 @@ public class MongoIndexConfig implements CommandLineRunner {
     private void crearIndicesOrdenes() {
         // Índice por usuario ID
         ensureIndexSafe("ordenes", new Index().on("usuarioId", Sort.Direction.ASC).named("idx_orden_usuario_id"));
-
-        // Nota: la entidad `Orden` ya declara @Indexed(name = "idx_fecha_pedido") sobre
-        // el campo `fechaPedido`. Para evitar conflictos con índices preexistentes en Atlas
-        // (mismo nombre pero distinta especificación), no creamos aquí el índice programáticamente.
-        // Si necesitas un índice con diferente orden/dirección, crea uno con un nombre distinto.
-
-        // Índice por estado
-        ensureIndexSafe("ordenes", new Index().on("estado", Sort.Direction.ASC).named("idx_estado"));
-
-        // Índice por sucursal
-        ensureIndexSafe("ordenes", new Index().on("sucursalId", Sort.Direction.ASC).named("idx_orden_sucursal_id"));
     }
 
-    private void crearIndicesSucursales() {
-        // Índice por nombre
-        ensureIndexSafe("sucursales", new Index().on("nombre", Sort.Direction.ASC).named("idx_sucursal_nombre"));
-    }
-
-    /**
-     * Try to create an index but do not fail startup if there is an existing index
-     * with the same name but different key specification or options.
-     */
     private void ensureIndexSafe(String collection, IndexDefinition indexDefinition) {
         try {
             mongoTemplate.indexOps(collection).ensureIndex(indexDefinition);

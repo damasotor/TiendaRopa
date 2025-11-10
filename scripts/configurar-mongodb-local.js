@@ -456,8 +456,6 @@ try {
 try {
   // Índices para órdenes - usando los mismos nombres que Spring Boot
   db.ordenes.createIndex({ "usuarioId": 1 }, { name: "idx_orden_usuario_id" });
-  db.ordenes.createIndex({ "estado": 1 }, { name: "idx_estado" });
-  db.ordenes.createIndex({ "sucursalId": 1 }, { name: "idx_orden_sucursal_id" });
   print("Índices de órdenes creados");
 } catch (error) {
   print("Error al crear índices de órdenes: " + error.message);
@@ -469,14 +467,6 @@ try {
   print("Índices de usuarios creados");
 } catch (error) {
   print("Error al crear índices de usuarios: " + error.message);
-}
-
-try {
-  // Índices para sucursales - usando los mismos nombres que Spring Boot
-  db.sucursales.createIndex({ "nombre": 1 }, { name: "idx_sucursal_nombre" });
-  print("Índices de sucursales creados");
-} catch (error) {
-  print("Error al crear índices de sucursales: " + error.message);
 }
 
 // 5. Insertar datos de sucursales básicas (solo si no existen)
