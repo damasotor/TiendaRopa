@@ -135,15 +135,29 @@ public class OrdenController {
             boolean stockSuficiente = true;
             StringBuilder errorMessage = new StringBuilder();
 
-            // Verificar que hay stock suficiente para todos los productos
+            // CORREGIDO: Verificar que hay stock suficiente en la sucursal específica de cada item
             for (Orden.ItemOrden item : itemsOrden) {
                 Optional<Producto> productoOpt = productoRepository.findById(item.getArticuloId());
                 if (productoOpt.isPresent()) {
                     Producto producto = productoOpt.get();
-                    int stockDisponible = producto.getStockTotal(); // Usar stock total del inventario
+                    
+                    // Usar stock específico de la sucursal del item
+                    int stockDisponible;
+                    if (item.getSucursalId() != null && !item.getSucursalId().isEmpty()) {
+                        stockDisponible = producto.getStockEnSucursal(item.getSucursalId());
+                        System.out.println("Verificando stock en sucursal " + item.getSucursalId() + 
+                                         " para producto " + producto.getNombre() + ": " + stockDisponible);
+                    } else {
+                        // Si no hay sucursal específica, usar stock total
+                        stockDisponible = producto.getStockTotal();
+                        System.out.println("Verificando stock total para producto " + producto.getNombre() + ": " + stockDisponible);
+                    }
+                    
                     if (stockDisponible < item.getCantidad()) {
                         stockSuficiente = false;
+                        String sucursalInfo = item.getSucursalId() != null ? " en sucursal " + item.getSucursalId() : "";
                         errorMessage.append("Stock insuficiente para ").append(producto.getNombre())
+                                  .append(sucursalInfo)
                                   .append(". Disponible: ").append(stockDisponible)
                                   .append(", solicitado: ").append(item.getCantidad()).append(". ");
                     }
@@ -165,12 +179,12 @@ public class OrdenController {
                     Producto producto = productoOpt.get();
                     producto.setActualizadoEn(LocalDateTime.now());
                     
-                    // Actualizar el inventario por sucursal específica del item
+                    // CORREGIDO: Actualizar solo el inventario de la sucursal específica del item
                     if (producto.getInventario() != null && !producto.getInventario().isEmpty()) {
                         int cantidadRestante = item.getCantidad();
                         boolean stockReducido = false;
                         
-                        // Usar la sucursal específica de cada item
+                        // Usar la sucursal específica de cada item OBLIGATORIAMENTE
                         String sucursalItemId = item.getSucursalId();
                         if (sucursalItemId != null && !sucursalItemId.isEmpty()) {
                             System.out.println("Reduciendo stock de sucursal específica del item: " + sucursalItemId);
@@ -185,35 +199,28 @@ public class OrdenController {
                                                          " para producto " + producto.getNombre() + 
                                                          ": " + stockDisponible + " -> " + inv.getStock());
                                         stockReducido = true;
-                                        cantidadRestante = 0; // Marcamos que ya se redujo toda la cantidad
+                                        cantidadRestante = 0;
                                     } else {
-                                        System.out.println("Stock insuficiente en sucursal del item: " + inv.getSucursalId());
+                                        System.out.println("ERROR: Stock insuficiente en sucursal del item: " + inv.getSucursalId());
+                                        // No hacer fallback - esto debería haberse detectado antes
                                     }
                                     break;
                                 }
                             }
                         } 
                         
-                        // Si no se pudo reducir del item específico o no tiene sucursal, usar cualquier disponible
+                        // ELIMINADO: No hacer fallback a otras sucursales
+                        // Si no se pudo reducir del item específico, es un error
                         if (!stockReducido) {
-                            System.out.println("Fallback: reduciendo del primer stock disponible");
-                            
-                            for (Producto.Inventario inv : producto.getInventario()) {
-                                if (cantidadRestante <= 0) break;
-                                
-                                int stockDisponible = inv.getStock();
-                                if (stockDisponible > 0) {
-                                    int cantidadAReducir = Math.min(stockDisponible, cantidadRestante);
-                                    inv.setStock(stockDisponible - cantidadAReducir);
-                                    cantidadRestante -= cantidadAReducir;
-                                    System.out.println("Reducido stock en sucursal " + inv.getSucursalId() + 
-                                                     ": " + stockDisponible + " -> " + inv.getStock());
-                                }
-                            }
+                            System.out.println("ERROR: No se pudo reducir stock de la sucursal especificada: " + sucursalItemId);
+                            return ResponseEntity.badRequest()
+                                .body("Error interno: No se pudo procesar la orden para la sucursal " + sucursalItemId);
                         }
                         
                         if (cantidadRestante > 0) {
-                            System.out.println("Advertencia: No se pudo reducir toda la cantidad solicitada");
+                            System.out.println("ERROR: No se pudo reducir toda la cantidad solicitada");
+                            return ResponseEntity.badRequest()
+                                .body("Error interno: No se pudo procesar completamente la orden");
                         }
                     }
                     

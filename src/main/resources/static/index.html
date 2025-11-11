@@ -404,11 +404,12 @@
                 sucursales = sucursalesData; // Guardar para uso posterior
             } else {
                 console.error('Error cargando sucursales desde API, usando datos fijos');
-                // Fallback con datos fijos (IDs como strings que coinciden con la BD)
+                // Fallback con datos fijos - IDs actualizados para coincidir con InventarioUpdater
+                // NOTA: Estos IDs pueden cambiar - idealmente deberían cargarse dinámicamente
                 const sucursalesDisponibles = [
-                    {id: '6908e8a0b482ce1ec23cdb83', nombre: 'Centro'},
-                    {id: '6908e8a0b482ce1ec23cdb84', nombre: 'Punta Carretas'},
-                    {id: '6908e8a0b482ce1ec23cdb85', nombre: 'Maldonado'}
+                    {id: 'Centro', nombre: 'Centro'},
+                    {id: 'Punta Carretas', nombre: 'Punta Carretas'},
+                    {id: 'Maldonado', nombre: 'Maldonado'}
                 ];
                 const select = document.getElementById('sucursalFiltro');
                 
@@ -573,6 +574,10 @@
 
     // Agregar producto al carrito usando CU-002
     async function agregarAlCarrito(productoId) {
+        console.log('=== AGREGAR AL CARRITO ===');
+        console.log('ProductoId:', productoId);
+        console.log('Sucursal filtrada actual:', sucursalFiltradaActual);
+        
         // Obtener la cantidad seleccionada
         const cantidadInput = document.getElementById(`cantidad-${productoId}`);
         const cantidad = cantidadInput ? parseInt(cantidadInput.value) : 1;
@@ -582,6 +587,186 @@
             alert('La cantidad debe estar entre 1 y 10');
             return;
         }
+
+        // NUEVA VALIDACIÓN: Verificar si hay sucursal seleccionada
+        if (!sucursalFiltradaActual) {
+            console.log('No hay sucursal seleccionada, mostrando selector...');
+            const sucursalSeleccionada = await mostrarSelectorSucursal(productoId);
+            if (!sucursalSeleccionada) {
+                console.log('Usuario canceló la selección de sucursal');
+                return; // Usuario canceló
+            }
+            // Usar la sucursal seleccionada para este producto específicamente
+            console.log('Sucursal seleccionada:', sucursalSeleccionada);
+            return await procesarAgregarAlCarrito(productoId, cantidad, sucursalSeleccionada);
+        }
+
+        // Si ya hay sucursal filtrada, usar esa
+        return await procesarAgregarAlCarrito(productoId, cantidad, sucursalFiltradaActual);
+    }
+
+    // Función para mostrar el selector de sucursales con stock
+    async function mostrarSelectorSucursal(productoId) {
+        console.log('Mostrando selector de sucursal para producto:', productoId);
+        
+        // Encontrar el producto en la lista cargada
+        const producto = productos.find(p => p.id === productoId);
+        if (!producto) {
+            alert('Error: Producto no encontrado');
+            return null;
+        }
+
+        console.log('Producto encontrado:', producto.nombre);
+        console.log('Inventario del producto:', producto.inventario);
+        console.log('Sucursales disponibles:', sucursales);
+
+        // Obtener sucursales con stock disponible
+        const sucursalesConStock = [];
+        if (producto.inventario && producto.inventario.length > 0) {
+            for (const inv of producto.inventario) {
+                if (inv.stock > 0) {
+                    // Soportar ambos formatos: sucursalId (camelCase) o sucursal_id (snake_case)
+                    const invSucursalId = inv.sucursalId || inv.sucursal_id || (inv.sucursal && (inv.sucursal.id || inv.sucursal._id));
+                    console.log(`Procesando inventario: sucursalId=${invSucursalId}, stock=${inv.stock}`);
+
+                    // Buscar información de la sucursal - mejorado para debug
+                    let sucursalInfo = null;
+
+                    // Buscar por diferentes campos posibles en la respuesta de la API
+                    sucursalInfo = sucursales.find(s => {
+                        const sucursalIdFromAPI = s.id || s._id || s.idAsString || s.idAsString;
+                        console.log(`Comparando: invSucursalId='${invSucursalId}' con sucursal API id='${sucursalIdFromAPI}'`);
+                        return sucursalIdFromAPI === invSucursalId;
+                    });
+
+                    // Si no se encuentra, buscar por nombre (fallback)
+                    if (!sucursalInfo) {
+                        sucursalInfo = sucursales.find(s => {
+                            // Comparación por nombre en caso de que los IDs no coincidan
+                            return s.nombre && invSucursalId && (
+                                s.nombre.toLowerCase() === String(invSucursalId).toLowerCase() ||
+                                String(invSucursalId).toLowerCase().includes(s.nombre.toLowerCase())
+                            );
+                        });
+                    }
+
+                    console.log('Sucursal info encontrada:', sucursalInfo);
+
+                    // Determinar nombre a mostrar
+                    let nombreSucursal;
+                    if (sucursalInfo && (sucursalInfo.nombre || sucursalInfo.name)) {
+                        nombreSucursal = sucursalInfo.nombre || sucursalInfo.name;
+                    } else {
+                        // Fallback: usar el ID de sucursal con formato más amigable
+                        nombreSucursal = getNombreSucursalFallback(invSucursalId || 'desconocida');
+                    }
+
+                    sucursalesConStock.push({
+                        id: invSucursalId,
+                        nombre: nombreSucursal,
+                        stock: inv.stock
+                    });
+                }
+            }
+        }
+
+        console.log('Sucursales con stock procesadas:', sucursalesConStock);
+
+        if (sucursalesConStock.length === 0) {
+            alert('Lo sentimos, este producto no tiene stock disponible en ninguna sucursal.');
+            return null;
+        }
+
+        // Crear el diálogo modal
+        return new Promise((resolve) => {
+            // Crear overlay
+            const overlay = document.createElement('div');
+            overlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            
+            // Crear modal
+            const modal = document.createElement('div');
+            modal.className = 'bg-white rounded-lg p-6 max-w-md w-full mx-4';
+            modal.innerHTML = `
+                <h3 class="text-lg font-semibold mb-4">Seleccionar Sucursal</h3>
+                <p class="text-gray-600 mb-4">Debe seleccionar una sucursal para agregar "<strong>${producto.nombre}</strong>" al carrito:</p>
+                <select id="sucursalSelector" class="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4">
+                    <option value="">-- Seleccione una sucursal --</option>
+                    ${sucursalesConStock.map(s => 
+                        `<option value="${s.id}">${s.nombre} (${s.stock} disponibles)</option>`
+                    ).join('')}
+                </select>
+                <div class="flex justify-end space-x-3">
+                    <button id="cancelarSucursal" class="px-4 py-2 text-gray-600 hover:text-gray-800">Cancelar</button>
+                    <button id="confirmarSucursal" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Agregar al Carrito</button>
+                </div>
+            `;
+            
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            
+            // Event listeners
+            const selector = modal.querySelector('#sucursalSelector');
+            const cancelBtn = modal.querySelector('#cancelarSucursal');
+            const confirmBtn = modal.querySelector('#confirmarSucursal');
+            
+            cancelBtn.addEventListener('click', () => {
+                document.body.removeChild(overlay);
+                resolve(null);
+            });
+            
+            confirmBtn.addEventListener('click', () => {
+                const sucursalSeleccionada = selector.value;
+                if (!sucursalSeleccionada) {
+                    alert('Por favor seleccione una sucursal');
+                    return;
+                }
+                document.body.removeChild(overlay);
+                resolve(sucursalSeleccionada);
+            });
+            
+            // Cerrar con ESC o click fuera
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    document.body.removeChild(overlay);
+                    resolve(null);
+                }
+            });
+            
+            document.addEventListener('keydown', function escapeHandler(e) {
+                if (e.key === 'Escape') {
+                    document.removeEventListener('keydown', escapeHandler);
+                    if (document.body.contains(overlay)) {
+                        document.body.removeChild(overlay);
+                    }
+                    resolve(null);
+                }
+            });
+        });
+    }
+
+    // Función helper para obtener nombre de sucursal cuando no se encuentra en la API
+    function getNombreSucursalFallback(sucursalId) {
+        // Mapeo conocido de IDs a nombres basado en los datos del proyecto
+        const mapeoConocido = {
+            'Centro': 'Centro',
+            'Punta Carretas': 'Punta Carretas', 
+            'Maldonado': 'Maldonado',
+            // IDs de ObjectId en formato string (generados por InventarioUpdater)
+            // Estos pueden cambiar entre ejecuciones - usar con precaución
+        };
+        
+        // Si es un ObjectId largo, ver si coincide con algún patrón conocido
+        if (sucursalId.length === 24) {
+            // Es probablemente un ObjectId - intentar extraer info útil
+            return `Sucursal ${sucursalId.substring(20)}`;
+        }
+        
+        return mapeoConocido[sucursalId] || `Sucursal ${sucursalId}`;
+    }
+
+    // Función para procesar la adición al carrito
+    async function procesarAgregarAlCarrito(productoId, cantidad, sucursalId) {
+        console.log('Procesando agregar al carrito:', { productoId, cantidad, sucursalId });
         
         // Obtener el token para autenticación
         const token = localStorage.getItem('jwt-token');
@@ -601,16 +786,26 @@
                 body: JSON.stringify({
                     articuloId: productoId,
                     cantidad: cantidad,
-                    sucursalId: sucursalFiltradaActual // Incluir la sucursal actual filtrada
+                    sucursalId: sucursalId
                 })
             });
 
             if (response.ok) {
                 carrito = await response.json();
                 actualizarBadgeCarrito();
+                
+                // Buscar nombre de la sucursal para mostrar
+                const sucursalInfo = sucursales.find(s => {
+                    const id = s.id || s._id || s.idAsString;
+                    return id === sucursalId;
+                });
+                const nombreSucursal = sucursalInfo ? sucursalInfo.nombre : sucursalId;
+                
                 // Mostrar notificación
-                alert(`${cantidad} producto(s) agregado(s) al carrito`);
+                alert(`${cantidad} producto(s) agregado(s) al carrito desde ${nombreSucursal}`);
+                
                 // Resetear cantidad a 1
+                const cantidadInput = document.getElementById(`cantidad-${productoId}`);
                 if (cantidadInput) {
                     cantidadInput.value = 1;
                 }
@@ -618,9 +813,11 @@
                 console.error('Error al agregar al carrito:', response.status);
                 const errorText = await response.text();
                 console.error('Detalles del error:', errorText);
+                alert('Error al agregar al carrito: ' + errorText);
             }
         } catch (error) {
             console.error('Error agregando al carrito:', error);
+            alert('Error de conexión al agregar al carrito');
         }
     }
 

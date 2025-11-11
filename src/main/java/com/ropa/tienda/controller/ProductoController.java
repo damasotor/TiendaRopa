@@ -42,14 +42,44 @@ public class ProductoController {
     // RUTA PÚBLICA (Todos pueden ver los productos)
     @GetMapping
     public List<Producto> obtenerTodos() {
-        List<Producto> productos = productoRepository.findAll();
         System.out.println("=== OBTENER TODOS LOS PRODUCTOS ===");
-        System.out.println("Total productos encontrados: " + productos.size());
-        if (!productos.isEmpty()) {
-            System.out.println("Ejemplo de ID del primer producto: " + productos.get(0).getId());
-            System.out.println("Nombre del primer producto: " + productos.get(0).getNombre());
+        
+        try {
+            // CORREGIDO: Usar aggregation para filtrar productos con stock > 0 en al menos una sucursal
+            Criteria criteria = Criteria.where("inventario.stock").gt(0);
+            MatchOperation matchOperation = Aggregation.match(criteria);
+            
+            Aggregation aggregation = Aggregation.newAggregation(matchOperation);
+            AggregationResults<Producto> results = mongoTemplate.aggregate(
+                aggregation, "productos", Producto.class);
+            
+            List<Producto> productos = results.getMappedResults();
+            
+            System.out.println("Total productos con stock disponible: " + productos.size());
+            
+            if (!productos.isEmpty()) {
+                System.out.println("Ejemplo de ID del primer producto: " + productos.get(0).getId());
+                System.out.println("Nombre del primer producto: " + productos.get(0).getNombre());
+                
+                // Debug: mostrar inventario del primer producto
+                if (productos.get(0).getInventario() != null) {
+                    System.out.println("Inventario del primer producto:");
+                    for (Producto.Inventario inv : productos.get(0).getInventario()) {
+                        System.out.println("  - Sucursal: " + inv.getSucursalId() + ", Stock: " + inv.getStock());
+                    }
+                }
+            } else {
+                System.out.println("⚠️ No se encontraron productos con stock disponible");
+            }
+            
+            return productos;
+            
+        } catch (Exception e) {
+            System.err.println("Error en obtenerTodos: " + e.getMessage());
+            e.printStackTrace();
+            // Fallback: devolver lista vacía en caso de error
+            return new ArrayList<>();
         }
-        return productos;
     }
 
     // CU-001: Filtro avanzado de productos usando Aggregation Pipeline
@@ -69,6 +99,7 @@ public class ProductoController {
             }
 
             // Filtrar por rango de precios
+            // No se utiliza precio mínimo
             if (filtros.precioMin() != null) {
                 System.out.println("Aplicando filtro por precio mínimo: " + filtros.precioMin());
                 criteria.and("precio").gte(filtros.precioMin());
@@ -115,17 +146,26 @@ public class ProductoController {
                 }
                 
                 if (!sucursalIds.isEmpty()) {
-                    // Filtrar productos que tengan inventario en alguna de las sucursales especificadas
-                    criteria.and("inventario.sucursal_id").in(sucursalIds);
-                    System.out.println("Criterio de sucursal aplicado: inventario.sucursal_id in " + sucursalIds);
+                    // CORREGIDO: Filtrar productos que tengan inventario con stock > 0 en alguna de las sucursales especificadas
+                    criteria.and("inventario").elemMatch(
+                        Criteria.where("sucursal_id").in(sucursalIds)
+                               .and("stock").gt(0)
+                    );
+                    System.out.println("Criterio de sucursal aplicado: inventario.sucursal_id in " + sucursalIds + " AND stock > 0");
                 }
             }
 
             // Filtrar por stock mínimo usando la estructura de inventario
             if (filtros.stockMinimo() != null) {
                 System.out.println("Aplicando filtro por stock mínimo: " + filtros.stockMinimo());
-                // Filtrar productos que tengan al menos el stock mínimo en alguna sucursal
+                // CORREGIDO: Filtrar productos que tengan al menos el stock mínimo en alguna sucursal
                 criteria.and("inventario.stock").gte(filtros.stockMinimo());
+            } else {
+                // NUEVO: Si no se especifica sucursal específica, filtrar productos con stock > 0 en al menos una sucursal
+                if (filtros.sucursales() == null || filtros.sucursales().isEmpty()) {
+                    System.out.println("Aplicando filtro por stock > 0 para mostrar solo productos disponibles");
+                    criteria.and("inventario.stock").gt(0);
+                }
             }
 
             // Crear operaciones de aggregation

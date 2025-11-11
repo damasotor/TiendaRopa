@@ -37,8 +37,10 @@ public class InventarioUpdater implements CommandLineRunner {
     }
 
     private void crearSucursalesInicial() {
-        if (sucursalRepository.count() == 0) {
-            System.out.println("Creando sucursales...");
+        long countExistentes = sucursalRepository.count();
+        
+        if (countExistentes == 0) {
+            System.out.println("No hay sucursales existentes, creando desde InventarioUpdater...");
             
             List<Sucursal> sucursales = new ArrayList<>();
             
@@ -56,9 +58,9 @@ public class InventarioUpdater implements CommandLineRunner {
             sucursales.add(maldonado);
             
             sucursalRepository.saveAll(sucursales);
-            System.out.println(">>> " + sucursales.size() + " sucursales creadas!");
+            System.out.println(">>> " + sucursales.size() + " sucursales creadas por InventarioUpdater!");
         } else {
-            System.out.println("Las sucursales ya existen (" + sucursalRepository.count() + " encontradas).");
+            System.out.println("Las sucursales ya existen (" + countExistentes + " encontradas) - usando existentes.");
         }
     }
 
