@@ -146,7 +146,7 @@ public class ProductoController {
                 }
                 
                 if (!sucursalIds.isEmpty()) {
-                    // CORREGIDO: Filtrar productos que tengan inventario con stock > 0 en alguna de las sucursales especificadas
+                    // Filtrar productos que tengan inventario con stock > 0 en alguna de las sucursales especificadas
                     criteria.and("inventario").elemMatch(
                         Criteria.where("sucursal_id").in(sucursalIds)
                                .and("stock").gt(0)
@@ -158,10 +158,10 @@ public class ProductoController {
             // Filtrar por stock mínimo usando la estructura de inventario
             if (filtros.stockMinimo() != null) {
                 System.out.println("Aplicando filtro por stock mínimo: " + filtros.stockMinimo());
-                // CORREGIDO: Filtrar productos que tengan al menos el stock mínimo en alguna sucursal
+                // Filtrar productos que tengan al menos el stock mínimo en alguna sucursal
                 criteria.and("inventario.stock").gte(filtros.stockMinimo());
             } else {
-                // NUEVO: Si no se especifica sucursal específica, filtrar productos con stock > 0 en al menos una sucursal
+                // Si no se especifica sucursal específica, filtrar productos con stock > 0 en al menos una sucursal
                 if (filtros.sucursales() == null || filtros.sucursales().isEmpty()) {
                     System.out.println("Aplicando filtro por stock > 0 para mostrar solo productos disponibles");
                     criteria.and("inventario.stock").gt(0);

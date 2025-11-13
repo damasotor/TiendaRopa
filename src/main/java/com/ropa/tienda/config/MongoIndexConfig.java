@@ -28,7 +28,6 @@ public class MongoIndexConfig implements CommandLineRunner {
 
     private void crearIndicesProductos() {
         // Índice compuesto para inventario (sucursal_id + stock) - CU-001
-        // Use the same field name as in MongoDB script (inventario.sucursal_id)
         IndexDefinition inventarioIndex = new CompoundIndexDefinition(
             new Document("inventario.sucursal_id", 1)
                 .append("inventario.stock", 1)
@@ -62,31 +61,35 @@ public class MongoIndexConfig implements CommandLineRunner {
     }
 
     private void ensureIndexSafe(String collection, IndexDefinition indexDefinition) {
+
+        /* que la aplicación no falle al arrancar si otro servicio o una versión anterior 
+        ya creó un índice con el mismo nombre pero con propiedades ligeramente diferentes */
+
         try {
             mongoTemplate.indexOps(collection).ensureIndex(indexDefinition);
         } catch (DataAccessException dae) {
             Throwable cause = dae.getCause();
             if (cause instanceof MongoCommandException) {
                 MongoCommandException mce = (MongoCommandException) cause;
-                // Handle both IndexKeySpecsConflict (86) and IndexOptionsConflict (85)
+                
                 if ("IndexKeySpecsConflict".equals(mce.getErrorCodeName()) || 
                     "IndexOptionsConflict".equals(mce.getErrorCodeName()) ||
                     mce.getCode() == 86 || mce.getCode() == 85) {
-                    System.err.println("[WARN] Index conflict ignored for collection '" + collection + "': " + mce.getErrorMessage());
+                    System.err.println("[WARN] Conflicto de indices ignorado para la coleccion '" + collection + "': " + mce.getErrorMessage());
                     return;
                 }
             }
-            // If we didn't handle it, rethrow to keep the original behavior
+            
             throw dae;
         } catch (Exception e) {
-            // Last resort: if the message contains known index conflict errors, don't fail startup
+            // Sigue siendo una excepción desconocida, revisamos el mensaje
             String msg = e.getMessage() != null ? e.getMessage() : "";
             if (msg.contains("IndexKeySpecsConflict") || 
                 msg.contains("IndexOptionsConflict") ||
                 msg.contains("code: 86") || 
                 msg.contains("code: 85") ||
                 msg.contains("Index already exists")) {
-                System.err.println("[WARN] Index conflict ignored for collection '" + collection + "': " + msg);
+                System.err.println("[WARN] Conflicto de indices ignorado para la coleccion '" + collection + "': " + msg);
                 return;
             }
             throw e;

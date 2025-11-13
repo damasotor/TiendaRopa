@@ -130,12 +130,12 @@ public class OrdenController {
 
             nuevaOrden.setItems(itemsOrden);
 
-            // *** NUEVA FUNCIONALIDAD: Reducir stock de productos ***
+            // Reducir stock de productos
             System.out.println("Actualizando stock de productos...");
             boolean stockSuficiente = true;
             StringBuilder errorMessage = new StringBuilder();
 
-            // CORREGIDO: Verificar que hay stock suficiente en la sucursal específica de cada item
+            // Verificar que hay stock suficiente en la sucursal específica de cada item
             for (Orden.ItemOrden item : itemsOrden) {
                 Optional<Producto> productoOpt = productoRepository.findById(item.getArticuloId());
                 if (productoOpt.isPresent()) {
@@ -179,7 +179,7 @@ public class OrdenController {
                     Producto producto = productoOpt.get();
                     producto.setActualizadoEn(LocalDateTime.now());
                     
-                    // CORREGIDO: Actualizar solo el inventario de la sucursal específica del item
+                    // Actualizar solo el inventario de la sucursal específica del item
                     if (producto.getInventario() != null && !producto.getInventario().isEmpty()) {
                         int cantidadRestante = item.getCantidad();
                         boolean stockReducido = false;
@@ -209,7 +209,7 @@ public class OrdenController {
                             }
                         } 
                         
-                        // ELIMINADO: No hacer fallback a otras sucursales
+                        // No hacer fallback a otras sucursales
                         // Si no se pudo reducir del item específico, es un error
                         if (!stockReducido) {
                             System.out.println("ERROR: No se pudo reducir stock de la sucursal especificada: " + sucursalItemId);
